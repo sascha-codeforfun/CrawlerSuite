@@ -1,0 +1,59 @@
+<UserControl x:Class="CrawlerSuite.Views.FindingTableView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Row count and source on the left, filter on the right. -->
+        <Grid Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="SummaryText" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" TextWrapping="NoWrap"
+                       TextTrimming="CharacterEllipsis" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="16,0,0,0">
+                <TextBlock Text="Filter" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBox x:Name="FilterBox" Width="280" TextChanged="OnFilterChanged"
+                         AutomationProperties.Name="Filter the rows"
+                         ToolTip="Shows the rows that contain this text in any column" />
+            </StackPanel>
+        </Grid>
+
+        <!-- What the check is based on (accessibility checks): the standard in plain words, with links.
+             Starts folded to its first sentence, so the table gets the room; opened or folded with the
+             chevron, the choice holds for every tab until the app closes. -->
+        <ContentControl x:Name="BasisPanel" Grid.Row="1" Style="{StaticResource Hue.Callout}" Margin="0,0,0,12" Visibility="Collapsed">
+            <!-- The card's own colours throughout: no surface or border of its own, its text in the card's colour. -->
+            <Expander x:Name="BasisExpander" IsExpanded="False" Expanded="OnBasisToggled" Collapsed="OnBasisToggled"
+                      Background="Transparent" BorderThickness="0"
+                      Foreground="{Binding Foreground, ElementName=BasisPanel}"
+                      AutomationProperties.Name="Explanation of this check">
+                <Expander.Header>
+                    <TextBlock x:Name="BasisLead" TextWrapping="Wrap" Foreground="{Binding Foreground, ElementName=BasisPanel}" />
+                </Expander.Header>
+                <StackPanel Margin="0,4,0,0">
+                    <TextBlock x:Name="BasisText" TextWrapping="Wrap" />
+                    <WrapPanel x:Name="BasisLinks" Margin="0,6,0,0" />
+                </StackPanel>
+            </Expander>
+        </ContentControl>
+
+        <TextBlock x:Name="NotWrittenText" Grid.Row="2" Style="{StaticResource Text.Body}" TextWrapping="Wrap"
+                   Text="This output was not written in this snapshot — the check is off in the configuration, or it did not run."
+                   Visibility="Collapsed" />
+
+        <!-- Rows grow where a cell needs more than one line (the compact style fixes them at 28 px). -->
+        <DataGrid x:Name="Table" Grid.Row="2" Style="{StaticResource Hue.DataGrid.Compact}"
+                  RowHeight="NaN" MinRowHeight="28"
+                  AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" CanUserAddRows="False"
+                  EnableRowVirtualization="True" EnableColumnVirtualization="True"
+                  VirtualizingPanel.VirtualizationMode="Recycling" Sorting="OnSorting"
+                  MouseDoubleClick="OnRowDoubleClick"
+                  AutomationProperties.Name="Findings" />
+    </Grid>
+</UserControl>

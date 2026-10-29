@@ -1,0 +1,226 @@
+<UserControl x:Class="CrawlerSuite.Views.SpellFindingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:CrawlerSuite.Views">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <views:TextToVisibility x:Key="TextToVis" />
+
+        <!-- A filter chip: lit while its entries are shown, dimmed while they are hidden. -->
+        <Style x:Key="FilterChip" TargetType="ToggleButton">
+            <!-- The app's filter chip: a click lights it and shows only its words; lit frame; the others of the group dimmed. -->
+            <Setter Property="Margin" Value="0,0,8,6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ToolTip" Value="Click to show only these words; click again to show all" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Frame" Background="Transparent" CornerRadius="11" BorderThickness="1" BorderBrush="Transparent">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource Brush.LineStrong}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource Brush.Text}" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsDimmed}" Value="True">
+                                <Setter TargetName="Frame" Property="Opacity" Value="0.4" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- A part of a hyphenated word that no dictionary knows: lit = will be added by User or Site. -->
+        <Style x:Key="PartChip" TargetType="ToggleButton">
+            <Setter Property="Margin" Value="0,0,8,4" />
+            <Setter Property="Cursor" Value="Hand" />
+            <!-- The template draws its own frame: the text takes the theme's colour, not the system default. -->
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Frame" Padding="8,2" CornerRadius="6" BorderThickness="1"
+                                BorderBrush="{DynamicResource Brush.Accent}" Background="Transparent"
+                                TextElement.Foreground="{TemplateBinding Foreground}">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="False">
+                                <Setter TargetName="Frame" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Frame" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <DataTemplate x:Key="FilterChipTemplate">
+            <ToggleButton Style="{StaticResource FilterChip}" IsChecked="{Binding IsOn, Mode=TwoWay}"
+                          AutomationProperties.Name="{Binding Text}">
+                <ContentControl Content="{Binding Text}" Style="{Binding Role, Converter={x:Static views:RoleToChipStyle.Instance}}" />
+            </ToggleButton>
+        </DataTemplate>
+        <ItemsPanelTemplate x:Key="WrapItems">
+            <WrapPanel />
+        </ItemsPanelTemplate>
+    </UserControl.Resources>
+
+    <Grid Margin="28,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="{views:Masked Heading}" Style="{StaticResource Text.Title}" />
+            <TextBlock Text="{views:Masked SnapshotPath}" Style="{StaticResource Text.Mono}" Margin="0,6,0,0"
+                       Visibility="{Binding HasSnapshot, Converter={StaticResource BoolToVis}}" />
+            <ContentControl Style="{StaticResource Hue.Callout.Warn}" Margin="0,14,0,0"
+                            Visibility="{Binding Notice, Converter={StaticResource TextToVis}}">
+                <TextBlock Text="{views:Masked Notice}" TextWrapping="Wrap" />
+            </ContentControl>
+        </StackPanel>
+
+        <Border Grid.Row="1" Style="{StaticResource Hue.Card}" Margin="0,16,0,0"
+                Visibility="{Binding HasSnapshot, Converter={StaticResource BoolToVis}}">
+            <StackPanel>
+                <TextBlock Text="EVERY MISSPELLING ONCE" Style="{StaticResource Text.Section}" />
+                <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0"
+                           Text="The unique misspellings of the page text, one row per word, decided once however many pages have it. User: the word is right, for every site — added to the user dictionary. Site: right for this site — added to its dictionary. Triage: a typo, or unclear — left to be looked at page by page. Dictionary choices take effect on the next run; Triage is remembered until the next run starts. Words in scripts are not listed." />
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="2" Margin="0,16,0,0" Visibility="{Binding HasWords, Converter={StaticResource BoolToVis}}">
+            <DockPanel LastChildFill="True">
+                <!-- Masked at the strictest level, like every copy. -->
+                <Button x:Name="CopyListButton" DockPanel.Dock="Right" Content="Copy list" Style="{StaticResource Hue.Button.Tonal}"
+                        Click="OnCopyList"
+                        ToolTip="Copies the rows shown (the lit language chips) as tab-separated text: word, languages, pages, done, parts to add." />
+                <TextBlock Text="{Binding ListSummary}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
+            </DockPanel>
+            <ItemsControl ItemsSource="{Binding LanguageChips}" ItemTemplate="{StaticResource FilterChipTemplate}"
+                          ItemsPanel="{StaticResource WrapItems}" Focusable="False" Margin="0,10,0,0" />
+        </StackPanel>
+
+        <!-- A decided row stays where it is, greyed, so the list never jumps. -->
+        <DataGrid x:Name="WordGrid" Grid.Row="3" ItemsSource="{Binding Shown}" Style="{StaticResource Hue.DataGrid.Compact}" Margin="0,6,0,0"
+                  AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" CanUserAddRows="False"
+                  SelectionMode="Single" RowHeight="NaN" MinRowHeight="38" AutomationProperties.Name="Unique misspellings"
+                  Visibility="{Binding HasWords, Converter={StaticResource BoolToVis}}">
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsOpen}" Value="False">
+                            <Setter Property="Opacity" Value="0.5" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="Word" SortMemberPath="Word" Width="2*">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel VerticalAlignment="Center" Margin="0,2,0,2">
+                                <!-- Twice the grid's size: transposed and look-alike letters (I/l/1, O/0) stand out. -->
+                                <TextBlock Text="{Binding Word}" FontFamily="{StaticResource Font.Mono}" FontSize="25" TextTrimming="CharacterEllipsis" />
+                                <!-- A hyphenated word: its parts as the check placed them; the lit ones are added by User or Site. -->
+                                <ItemsControl ItemsSource="{Binding Parts}" Focusable="False" Margin="0,4,0,0"
+                                              Visibility="{Binding HasParts, Converter={StaticResource BoolToVis}}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <ToggleButton Style="{StaticResource PartChip}" IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                              IsEnabled="{Binding CanChoose}" ToolTip="{Binding Summary}"
+                                                              Visibility="{Binding IsUnknown, Converter={StaticResource BoolToVis}}"
+                                                              AutomationProperties.Name="{Binding Text}">
+                                                    <TextBlock Text="{Binding Text}" FontFamily="{StaticResource Font.Mono}" FontSize="14"
+                                                               Foreground="{DynamicResource Brush.Text}" />
+                                                </ToggleButton>
+                                                <TextBlock Style="{StaticResource Text.Caption}" Margin="0,0,10,4" VerticalAlignment="Center"
+                                                           Visibility="{Binding IsKnown, Converter={StaticResource BoolToVis}}">
+                                                    <Run Text="{Binding Text, Mode=OneWay}" FontFamily="{StaticResource Font.Mono}" />
+                                                    <Run Text="{Binding Summary, Mode=OneWay, StringFormat='({0})'}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <!-- The page languages; the pill names other dictionaries that know the word (information only). -->
+                <DataGridTemplateColumn Header="Languages" SortMemberPath="LanguagesText" Width="230">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding LanguagesText}" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Text}" />
+                                <ContentControl Style="{StaticResource Hue.Tag.Accent}" Content="{Binding ValidInText}" Margin="8,0,0,0"
+                                                Visibility="{Binding HasValidIn, Converter={StaticResource BoolToVis}}"
+                                                ToolTip="Another dictionary knows this word. Information only: the word stays flagged for the page language." />
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="Pages" Binding="{Binding PagesText}" SortMemberPath="Pages" Width="70">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="TextAlignment" Value="Right" />
+                            <Setter Property="Margin" Value="0,0,10,0" />
+                            <Setter Property="VerticalAlignment" Value="Center" />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="Done" Binding="{Binding StateText}" SortMemberPath="State" Width="130">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="VerticalAlignment" Value="Center" />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTemplateColumn Header="" Width="400" CanUserSort="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,3,8,3">
+                            <!-- Any row: the pages with the word in Triage, where the surrounding text decides. -->
+                            <Button Content="Find in Triage" Style="{StaticResource Hue.Button.Ghost}" Margin="0,0,10,0" Click="OnFindInTriage"
+                                    ToolTip="Opens Triage, searched for this word: the pages that have it as a finding. A word added to a dictionary is not triaged any more." />
+                            <Grid>
+                            <!-- Decided on this page: Undo takes the decision back; the word is open again. -->
+                            <Button Content="Undo" Style="{StaticResource Hue.Button.Outline}" MinWidth="80" Click="OnUndo"
+                                    HorizontalAlignment="Right"
+                                    Visibility="{Binding CanUndo, Converter={StaticResource BoolToVis}}"
+                                    ToolTip="Takes this decision back: removes what it added to the dictionary and opens the word again" />
+                            <StackPanel Orientation="Horizontal"
+                                        Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}">
+                                <Button Content="User" Style="{StaticResource Hue.Button.Tonal}" MinWidth="70" Click="OnUser"
+                                        ToolTip="Right on every site you crawl: adds the word to the user dictionary (for a hyphenated word: the lit parts)" />
+                                <Button Content="Site" Style="{StaticResource Hue.Button.Tonal}" MinWidth="70" Margin="6,0,0,0" Click="OnSite"
+                                        ToolTip="Right for this site only: adds the word to the site's dictionary (for a hyphenated word: the lit parts)" />
+                                <Button Content="Triage" Style="{StaticResource Hue.Button.Outline}" MinWidth="80" Margin="6,0,0,0" Click="OnTriage"
+                                        ToolTip="A typo, or unclear: left to be looked at page by page" />
+                            </StackPanel>
+                            </Grid>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <TextBlock Grid.Row="3" Text="No misspellings in this snapshot's page text." Style="{StaticResource Text.Caption}" Margin="0,16,0,0"
+                   Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}" />
+    </Grid>
+</UserControl>

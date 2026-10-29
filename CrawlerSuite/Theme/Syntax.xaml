@@ -1,0 +1,27 @@
+<!--
+  Syntax.xaml · HTML highlighting colours for CrawlerSuite (not part of the HueTheme kit).
+
+  A deliberate deviation from the theme: HTML excerpts use the widely recognised Visual Studio /
+  VS Code "Dark+" colours, so markup reads at a glance. Kept in this one file, used through
+  DynamicResource like every theme brush; change them here.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="Syntax.Punctuation" Color="#808080" />
+    <SolidColorBrush x:Key="Syntax.Tag" Color="#569CD6" />
+    <SolidColorBrush x:Key="Syntax.AttributeName" Color="#9CDCFE" />
+    <SolidColorBrush x:Key="Syntax.AttributeValue" Color="#CE9178" />
+    <SolidColorBrush x:Key="Syntax.Text" Color="#D4D4D4" />
+    <SolidColorBrush x:Key="Syntax.Comment" Color="#6A9955" />
+    <SolidColorBrush x:Key="Syntax.Entity" Color="#569CD6" />
+
+    <!-- The same colours faded to 45 %: used behind the marks of a content-quality finding, so the
+         markup stays readable but the marked defect is what the eye lands on. -->
+    <SolidColorBrush x:Key="Syntax.Punctuation.Faded" Color="#73808080" />
+    <SolidColorBrush x:Key="Syntax.Tag.Faded" Color="#73569CD6" />
+    <SolidColorBrush x:Key="Syntax.AttributeName.Faded" Color="#739CDCFE" />
+    <SolidColorBrush x:Key="Syntax.AttributeValue.Faded" Color="#73CE9178" />
+    <SolidColorBrush x:Key="Syntax.Text.Faded" Color="#73D4D4D4" />
+    <SolidColorBrush x:Key="Syntax.Comment.Faded" Color="#736A9955" />
+    <SolidColorBrush x:Key="Syntax.Entity.Faded" Color="#73569CD6" />
+</ResourceDictionary>

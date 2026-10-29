@@ -1,0 +1,173 @@
+<UserControl x:Class="CrawlerSuite.Views.DictionariesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:CrawlerSuite.Views">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <views:TextToVisibility x:Key="TextToVis" />
+
+        <!-- A filter chip: lit while its entries are shown, dimmed while they are hidden. -->
+        <Style x:Key="FilterChip" TargetType="ToggleButton">
+            <!-- The app's filter chip: a click lights it and shows only its entries; lit frame; the others of the group dimmed. -->
+            <Setter Property="Margin" Value="0,0,8,6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ToolTip" Value="Click to show only these entries; click again to show all" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Frame" Background="Transparent" CornerRadius="11" BorderThickness="1" BorderBrush="Transparent">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource Brush.LineStrong}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource Brush.Text}" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsDimmed}" Value="True">
+                                <Setter TargetName="Frame" Property="Opacity" Value="0.4" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <DataTemplate x:Key="FilterChipTemplate">
+            <ToggleButton Style="{StaticResource FilterChip}" IsChecked="{Binding IsOn, Mode=TwoWay}"
+                          AutomationProperties.Name="{Binding Text}">
+                <ContentControl Content="{Binding Text}" Style="{Binding Role, Converter={x:Static views:RoleToChipStyle.Instance}}" />
+            </ToggleButton>
+        </DataTemplate>
+        <ItemsPanelTemplate x:Key="WrapItems">
+            <WrapPanel />
+        </ItemsPanelTemplate>
+    </UserControl.Resources>
+
+    <Grid Margin="28,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="{views:Masked Heading}" Style="{StaticResource Text.Title}" />
+            <TextBlock Text="{views:Masked SnapshotPath}" Style="{StaticResource Text.Mono}" Margin="0,6,0,0"
+                       Visibility="{Binding HasSnapshot, Converter={StaticResource BoolToVis}}" />
+            <ContentControl Style="{StaticResource Hue.Callout.Warn}" Margin="0,14,0,0"
+                            Visibility="{Binding Notice, Converter={StaticResource TextToVis}}">
+                <TextBlock Text="{views:Masked Notice}" TextWrapping="Wrap" />
+            </ContentControl>
+        </StackPanel>
+
+        <!-- Where the entries come from, and the second pass on demand. -->
+        <Border Grid.Row="1" Style="{StaticResource Hue.Card}" Margin="0,16,0,0"
+                Visibility="{Binding HasSnapshot, Converter={StaticResource BoolToVis}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Margin="0,0,16,0">
+                    <TextBlock Text="ENTRIES NO LONGER NEEDED" Style="{StaticResource Text.Section}" />
+                    <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0"
+                               Text="Remove takes the entry out of its dictionary file. Pin keeps it and marks it with ! so it is never offered again. Keep leaves it as it is for now. A backup of each dictionary is made before its first change while the app runs." />
+                    <TextBlock Text="{Binding ReportText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                    <TextBlock Text="{Binding NotNeededText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" VerticalAlignment="Top" MaxWidth="300">
+                    <Button Content="Find entries no longer needed" Style="{StaticResource Hue.Button.Primary}"
+                            IsEnabled="{Binding CanFind}" Click="OnFind" HorizontalAlignment="Right"
+                            ToolTip="{Binding FindHint}" ToolTipService.ShowOnDisabled="True" />
+                    <TextBlock Text="{Binding FindHint}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap"
+                               TextAlignment="Right" Margin="0,6,0,0" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Filters and the count. -->
+        <StackPanel Grid.Row="2" Margin="0,16,0,0" Visibility="{Binding HasEntries, Converter={StaticResource BoolToVis}}">
+            <DockPanel LastChildFill="True">
+                <!-- Masked at the strictest level, like every copy. -->
+                <Button x:Name="CopyListButton" DockPanel.Dock="Right" Content="Copy list" Style="{StaticResource Hue.Button.Tonal}"
+                        Click="OnCopyList"
+                        ToolTip="Copies the rows shown (the lit chips) as tab-separated text: entry, dictionary, reason, done." />
+                <TextBlock Text="{Binding ListSummary}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
+            </DockPanel>
+            <WrapPanel Margin="0,10,0,0">
+                <ItemsControl ItemsSource="{Binding ReasonChips}" ItemTemplate="{StaticResource FilterChipTemplate}"
+                              ItemsPanel="{StaticResource WrapItems}" Focusable="False" Margin="0,0,16,0" />
+                <ItemsControl ItemsSource="{Binding DictionaryChips}" ItemTemplate="{StaticResource FilterChipTemplate}"
+                              ItemsPanel="{StaticResource WrapItems}" Focusable="False" />
+            </WrapPanel>
+        </StackPanel>
+
+        <!-- The entries: a decided row stays where it is, greyed, so the list never jumps. -->
+        <DataGrid Grid.Row="3" ItemsSource="{Binding Shown}" Style="{StaticResource Hue.DataGrid.Compact}" Margin="0,6,0,0"
+                  AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" CanUserAddRows="False"
+                  SelectionMode="Single" RowHeight="NaN" MinRowHeight="38" AutomationProperties.Name="Dictionary entries"
+                  Visibility="{Binding HasEntries, Converter={StaticResource BoolToVis}}">
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsOpen}" Value="False">
+                            <Setter Property="Opacity" Value="0.5" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Entry" Binding="{Binding Word}" Width="2*">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+                            <Setter Property="VerticalAlignment" Value="Center" />
+                            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTemplateColumn Header="Dictionary" Width="110" SortMemberPath="DictionaryText">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding DictionaryText}" ToolTip="{Binding DictionaryHint}" VerticalAlignment="Center" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Reason" Width="130" SortMemberPath="ReasonText">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding ReasonText}" ToolTip="{Binding ReasonHint}" VerticalAlignment="Center" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="Done" Binding="{Binding StateText}" SortMemberPath="State" Width="110">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="VerticalAlignment" Value="Center" />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTemplateColumn Header="" Width="280" CanUserSort="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,3,8,3"
+                                        IsEnabled="{Binding IsOpen}">
+                                <Button Content="Remove" Style="{StaticResource Hue.Button.Tonal.Error}" MinWidth="80" Click="OnRemove"
+                                        ToolTip="Takes the entry out of the dictionary file" />
+                                <Button Content="Pin" Style="{StaticResource Hue.Button.Tonal}" MinWidth="70" Margin="6,0,0,0" Click="OnPin"
+                                        ToolTip="Keeps the entry and marks it with ! — never offered again" />
+                                <Button Content="Keep" Style="{StaticResource Hue.Button.Outline}" MinWidth="70" Margin="6,0,0,0" Click="OnKeep"
+                                        ToolTip="Leaves the entry as it is; offered again on a later report" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <TextBlock Grid.Row="3" Text="Nothing to clean up in this snapshot's reports." Style="{StaticResource Text.Caption}" Margin="0,16,0,0"
+                   Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}" />
+    </Grid>
+</UserControl>

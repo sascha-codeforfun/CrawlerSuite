@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<RootNamespace>CrawlerSuite.Core</RootNamespace>
+		<AssemblyName>CrawlerSuite.Core</AssemblyName>
+		<Version>2.0.186</Version>
+		<!-- The version carries no commit: a build from a clone and one from a zip give the same product version. -->
+		<IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+		<JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+		<NuGetAudit>false</NuGetAudit>
+		<NoWarn>$(NoWarn);NU1900</NoWarn>
+		<Configurations>Debug;Release</Configurations>
+		<IsTrimmable>false</IsTrimmable>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)'=='Release'">
+		<Optimize>true</Optimize>
+	</PropertyGroup>
+
+	<!-- No debug information: symbols record the source paths, so the same source built in
+	     another folder would give a different assembly. -->
+	<PropertyGroup>
+		<DebugType>none</DebugType>
+		<DebugSymbols>false</DebugSymbols>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="CrawlerSuite" />
+		<InternalsVisibleTo Include="CrawlerSuite.Core.Tests" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="HtmlAgilityPack" Version="1.12.4" />
+		<PackageReference Include="WeCantSpell.Hunspell" Version="7.0.1" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Include="Text\de.json" LogicalName="CrawlerSuite.Core.Text.de.json" />
+		<EmbeddedResource Include="licenses\MIT.txt" />
+		<EmbeddedResource Include="licenses\MPL-1.1.txt" />
+		<EmbeddedResource Include="licenses\WeCantSpell.Hunspell.txt" />
+		<EmbeddedResource Include="licenses\THIRD-PARTY-NOTICES.txt" />
+	</ItemGroup>
+
+</Project>

@@ -1,0 +1,564 @@
+<UserControl x:Class="CrawlerSuite.Views.RunView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:CrawlerSuite.Views">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <views:InverseBoolToVisibility x:Key="InverseBoolToVis" />
+        <views:TextToVisibility x:Key="TextToVis" />
+        <views:ToneToPillStyle x:Key="TonePill" />
+
+        <!-- A config-check block: label, then its lines coloured by tone. -->
+        <DataTemplate x:Key="CheckBlockTemplate">
+            <Grid Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="110" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Section}" Margin="0,2,12,0" />
+                <ItemsControl Grid.Column="1" ItemsSource="{Binding Lines}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" Margin="0,1">
+                                <TextBlock Text="{Binding SubLabel}" Style="{StaticResource Text.Caption}" MinWidth="0"
+                                           Margin="0,0,10,0" Visibility="{Binding SubLabel, Converter={StaticResource TextToVis}}" />
+                                <TextBlock Text="{views:Masked Text}" TextWrapping="Wrap" MaxWidth="900">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Body}">
+                                            <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Tone}" Value="Data">
+                                                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextDim}" />
+                                                    <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Tone}" Value="Accent">
+                                                    <Setter Property="Foreground" Value="{DynamicResource Brush.WarnText}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Tone}" Value="Error">
+                                                    <Setter Property="Foreground" Value="{DynamicResource Brush.ErrorText}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
+        </DataTemplate>
+
+        <!-- A config check (Problem / Why / Fix) shown as a card. -->
+        <DataTemplate x:Key="ConfigCheckTemplate">
+            <Border Style="{StaticResource Hue.Card}" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="{Binding Subtitle, StringFormat='CONFIG CHECK · {0}'}" Style="{StaticResource Text.Section}" />
+                    <ItemsControl ItemsSource="{Binding Blocks}" ItemTemplate="{StaticResource CheckBlockTemplate}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- A small counter tile. -->
+        <Style x:Key="CounterLabel" TargetType="TextBlock" BasedOn="{StaticResource Text.Caption}" />
+        <Style x:Key="CounterValue" TargetType="TextBlock" BasedOn="{StaticResource Text.Heading}">
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+        <!-- Under a tile once the extra download runs: "main 123 · extra 456". -->
+        <Style x:Key="CounterSplit" TargetType="TextBlock" BasedOn="{StaticResource Text.Caption}">
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+        <!-- Copy for AI: indigo, the outlier colour, while the run goes on — a copy then is not final. -->
+        <Style x:Key="CopyForAiButton" TargetType="Button" BasedOn="{StaticResource Hue.Button.Tonal}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding State.IsRunning}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Brush.SourceMappedSoft}" />
+                    <Setter Property="Foreground" Value="{DynamicResource Brush.SourceMappedText}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource Brush.SourceMappedEdge}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer Padding="28,24" VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+
+            <!-- Configuration problems (load failure or a failed start-up check). -->
+            <StackPanel Visibility="{Binding ConfigHeading, Converter={StaticResource TextToVis}}">
+                <ContentControl Style="{StaticResource Hue.Callout.Critical}" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="{views:Masked ConfigHeading}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="The crawl can't start until this is fixed. Fix the file, then reload the configuration."
+                                   Foreground="{DynamicResource Brush.TextDim}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                    </StackPanel>
+                </ContentControl>
+                <ItemsControl ItemsSource="{Binding ConfigProblems}" ItemTemplate="{StaticResource ConfigCheckTemplate}" />
+            </StackPanel>
+
+            <!-- Site and start. -->
+            <Border Style="{StaticResource Hue.Card}" Margin="0,0,0,16">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <!-- The site is picked at the top of the side menu; every page follows it. -->
+                        <TextBlock Text="SITE TO CRAWL" Style="{StaticResource Text.Section}" />
+                        <TextBlock Text="{views:Masked SelectedSite}" Style="{StaticResource Text.Heading}" Margin="0,8,0,0" />
+                        <TextBlock Text="{views:Masked SelectedSite.Url}" Style="{StaticResource Text.Mono}" Margin="0,8,0,0" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
+                        <Button Content="Reload configuration" Style="{StaticResource Hue.Button.Outline}"
+                                Click="OnReloadConfiguration" IsEnabled="{Binding State.IsRunning, Converter={x:Static views:Negate.Instance}}" />
+                        <!-- Amber, the theme's colour for "needs care, not dangerous": it skips every question. -->
+                        <Button Content="Re-run latest" Style="{StaticResource Hue.Button.Tonal.Warn}" Margin="10,0,0,0"
+                                Click="OnQuickRun" IsEnabled="{Binding CanQuickRun}"
+                                ToolTip="{Binding QuickRunToolTip}" ToolTipService.ShowOnDisabled="True" />
+                        <Button Content="Start crawl" Style="{StaticResource Hue.Button.Primary}" Margin="10,0,0,0"
+                                Click="OnStartRun" IsEnabled="{Binding CanStart}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Configuration summary. -->
+            <Border Style="{StaticResource Hue.Card}" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="CONFIGURATION" Style="{StaticResource Text.Section}" />
+                    <ItemsControl ItemsSource="{Binding Summary}" Margin="0,6,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="190" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Caption}" />
+                                    <TextBlock Grid.Column="1" Text="{views:Masked Value}" TextWrapping="Wrap">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Body}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsWarning}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.WarnText}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Outcome of the last run. -->
+            <ContentControl Style="{StaticResource Hue.Callout}" Margin="0,0,0,16"
+                            Visibility="{Binding LastOutcome, Converter={StaticResource TextToVis}}">
+                <StackPanel>
+                    <TextBlock Text="{views:Masked LastOutcome}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <Button Content="View results" Style="{StaticResource Hue.Button.Tonal}" HorizontalAlignment="Left"
+                            Margin="0,10,0,0" Click="OnViewResults"
+                            Visibility="{Binding HasResults, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
+            </ContentControl>
+
+            <!-- Phase strip: the whole road from the start — done, running, ahead (dimmed), skipped. -->
+            <ItemsControl ItemsSource="{Binding State.Phases}" Margin="0,0,0,16" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,22,6" Background="Transparent"
+                                    ToolTip="{Binding ToolTipText}">
+                            <Ellipse Width="9" Height="9" VerticalAlignment="Center" StrokeThickness="1.5">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="Transparent" />
+                                        <Setter Property="Stroke" Value="{DynamicResource Brush.TextDisabled}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Status}" Value="Done">
+                                                <Setter Property="Fill" Value="{DynamicResource Brush.Ok}" />
+                                                <Setter Property="Stroke" Value="{DynamicResource Brush.Ok}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Status}" Value="Running">
+                                                <Setter Property="Fill" Value="{DynamicResource Brush.Accent}" />
+                                                <Setter Property="Stroke" Value="{DynamicResource Brush.Accent}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Status}" Value="Stopped">
+                                                <Setter Property="Fill" Value="{DynamicResource Brush.Warn}" />
+                                                <Setter Property="Stroke" Value="{DynamicResource Brush.Warn}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Status}" Value="Skipped">
+                                                <Setter Property="StrokeDashArray" Value="1.2 1.2" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Body}">
+                                        <Setter Property="Foreground" Value="{DynamicResource Brush.TextDisabled}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Status}" Value="Done">
+                                                <Setter Property="Foreground" Value="{DynamicResource Brush.TextDim}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Status}" Value="Running">
+                                                <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
+                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Status}" Value="Stopped">
+                                                <Setter Property="Foreground" Value="{DynamicResource Brush.WarnText}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                                <Run Text="{Binding Title, Mode=OneWay}" /><Run Text="{Binding StateText, Mode=OneWay}" FontWeight="Normal" />
+                            </TextBlock>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Run card: while the run is on, the running phase with its current step (by file count, or the
+                 download counters during a download); below, and after the run, the whole run step by step. -->
+            <Border Style="{StaticResource Hue.Card}" Margin="0,0,0,16"
+                    Visibility="{Binding State.HasPlan, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <StackPanel Margin="0,0,0,16" Visibility="{Binding State.Card.Visible, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding State.Card.Title}" Style="{StaticResource Text.Heading}" />
+                        <TextBlock Text="{Binding State.Card.SubText}" Style="{StaticResource Text.Caption}" Margin="0,2,0,0"
+                                   Visibility="{Binding State.Card.SubText, Converter={StaticResource TextToVis}}" />
+
+                        <!-- Step progress by file count (any step without a download). -->
+                        <StackPanel Margin="0,12,0,0" Visibility="{Binding State.Progress.Visible, Converter={StaticResource InverseBoolToVis}}">
+                            <ProgressBar Value="{Binding State.Card.Percent, Mode=OneWay}" Maximum="100" Height="8" Tag="Glow"
+                                         IsIndeterminate="{Binding State.Card.HasTotal, Converter={x:Static views:Negate.Instance}}"
+                                         AutomationProperties.Name="Progress of the current step" />
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding State.Card.CountText}" Style="{StaticResource Text.Body}" />
+                                <TextBlock Grid.Column="1" Text="{Binding State.Card.TimeText}" Style="{StaticResource Text.Caption}" />
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Download counters (main crawl, extra download). -->
+                        <StackPanel Visibility="{Binding State.Progress.Visible, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Margin="0,12,0,0" Visibility="{Binding State.Progress.HasExpected, Converter={StaticResource BoolToVis}}">
+                                <ProgressBar Value="{Binding State.Progress.ExpectedPercent, Mode=OneWay}" Maximum="100" Height="8" Tag="Glow"
+                                             AutomationProperties.Name="Crawl progress compared with the last crawl" />
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{views:Masked State.Progress.ExpectedText}" Style="{StaticResource Text.Body}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding State.Progress.TimeText}" Style="{StaticResource Text.Caption}" />
+                                </Grid>
+                            </StackPanel>
+                            <TextBlock Margin="0,12,0,0" Text="{Binding State.Progress.TimeText, StringFormat='Elapsed {0} · first crawl of this site — no previous crawl to compare with'}"
+                                       Style="{StaticResource Text.Caption}"
+                                       Visibility="{Binding State.Progress.HasExpected, Converter={StaticResource InverseBoolToVis}}" />
+
+                            <ContentControl Style="{StaticResource Hue.Callout.Warn}" Margin="0,12,0,0"
+                                            Visibility="{Binding State.Progress.IsOverUsual, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{views:Masked State.Progress.OverUsualText}" TextWrapping="Wrap" />
+                            </ContentControl>
+
+                            <StackPanel Margin="0,14,0,0" Visibility="{Binding State.Progress.HasLimit, Converter={StaticResource BoolToVis}}">
+                                <ProgressBar Value="{Binding State.Progress.LimitPercent, Mode=OneWay}" Maximum="100" Height="4"
+                                             AutomationProperties.Name="Downloaded data against the total download limit" />
+                                <TextBlock Text="{Binding State.Progress.LimitText}" Style="{StaticResource Text.Caption}" Margin="0,4,0,0" />
+                            </StackPanel>
+
+                            <ContentControl Style="{StaticResource Hue.Callout.Warn}" Margin="0,14,0,0"
+                                            Visibility="{Binding State.Progress.IsPaused, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{Binding State.Progress.PauseText}" TextWrapping="Wrap" />
+                            </ContentControl>
+
+                            <UniformGrid Columns="6" Margin="0,16,0,0">
+                                <StackPanel Margin="0,0,12,12"><TextBlock Text="Pages" Style="{StaticResource CounterLabel}" /><TextBlock Text="{Binding State.Progress.Pages}" Style="{StaticResource CounterValue}" /><TextBlock Text="{Binding State.Progress.PagesSplit}" Style="{StaticResource CounterSplit}" Visibility="{Binding State.Progress.HasSplit, Converter={StaticResource BoolToVis}}" /></StackPanel>
+                                <StackPanel Margin="0,0,12,12"><TextBlock Text="Assets" Style="{StaticResource CounterLabel}" /><TextBlock Text="{Binding State.Progress.Assets}" Style="{StaticResource CounterValue}" /><TextBlock Text="{Binding State.Progress.AssetsSplit}" Style="{StaticResource CounterSplit}" Visibility="{Binding State.Progress.HasSplit, Converter={StaticResource BoolToVis}}" /></StackPanel>
+                                <StackPanel Margin="0,0,12,12"><TextBlock Text="Waiting" Style="{StaticResource CounterLabel}" /><TextBlock Text="{Binding State.Progress.Queued}" Style="{StaticResource CounterValue}" /></StackPanel>
+                                <StackPanel Margin="0,0,12,12"><TextBlock Text="Downloading" Style="{StaticResource CounterLabel}" /><TextBlock Text="{Binding State.Progress.Active}" Style="{StaticResource CounterValue}" /></StackPanel>
+                                <StackPanel Margin="0,0,12,12"><TextBlock Text="Downloaded" Style="{StaticResource CounterLabel}" /><TextBlock Text="{Binding State.Progress.Downloaded}" Style="{StaticResource CounterValue}" /><TextBlock Text="{Binding State.Progress.DownloadedSplit}" Style="{StaticResource CounterSplit}" Visibility="{Binding State.Progress.HasSplit, Converter={StaticResource BoolToVis}}" /></StackPanel>
+                                <StackPanel Margin="0,0,12,12" ToolTip="404: the site's broken links (and 410). 4xx: other refusals. 5xx: server errors. Connection: no answer at all — stalled, refused, TLS, timed out. 5xx and connection count only what failed in the retry round too."><TextBlock Text="Errors" Style="{StaticResource CounterLabel}" /><TextBlock Text="{Binding State.Progress.Errors}" Style="{StaticResource CounterValue}" /><TextBlock Text="{Binding State.Progress.ErrorKinds}" Style="{StaticResource CounterSplit}" Visibility="{Binding State.Progress.ErrorKinds, Converter={StaticResource TextToVis}}" /><TextBlock Text="{Binding State.Progress.ErrorsSplit}" Style="{StaticResource CounterSplit}" Visibility="{Binding State.Progress.HasSplit, Converter={StaticResource BoolToVis}}" /></StackPanel>
+                                <StackPanel Margin="0,0,12,12"><TextBlock Text="Redirects" Style="{StaticResource CounterLabel}" /><TextBlock Text="{Binding State.Progress.Redirects}" Style="{StaticResource CounterValue}" /><TextBlock Text="{Binding State.Progress.RedirectsSplit}" Style="{StaticResource CounterSplit}" Visibility="{Binding State.Progress.HasSplit, Converter={StaticResource BoolToVis}}" /></StackPanel>
+                                <StackPanel Margin="0,0,12,12"><TextBlock Text="Stalled" Style="{StaticResource CounterLabel}" /><TextBlock Text="{Binding State.Progress.Stalled}" Style="{StaticResource CounterValue}" /><TextBlock Text="{Binding State.Progress.StalledSplit}" Style="{StaticResource CounterSplit}" Visibility="{Binding State.Progress.HasSplit, Converter={StaticResource BoolToVis}}" /></StackPanel>
+                                <StackPanel Margin="0,0,12,12" ToolTip="Downloads that failed for a passing reason — stalled, no answer, connection or TLS failure, 429, 5xx. They are tried again at the end, after a pause; only what fails there too counts as an error."><TextBlock Text="To retry" Style="{StaticResource CounterLabel}" /><TextBlock Text="{Binding State.Progress.ToRetry}" Style="{StaticResource CounterValue}" /></StackPanel>
+                                <StackPanel Margin="0,0,12,12"><TextBlock Text="Over size limit" Style="{StaticResource CounterLabel}" /><TextBlock Text="{Binding State.Progress.Oversized}" Style="{StaticResource CounterValue}" /><TextBlock Text="{Binding State.Progress.OversizedSplit}" Style="{StaticResource CounterSplit}" Visibility="{Binding State.Progress.HasSplit, Converter={StaticResource BoolToVis}}" /></StackPanel>
+                                <StackPanel Margin="0,0,12,12"><TextBlock Text="Speed" Style="{StaticResource CounterLabel}" /><TextBlock Text="{Binding State.Progress.Speed}" Style="{StaticResource CounterValue}" /></StackPanel>
+                            </UniformGrid>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="RUN OVERVIEW" Style="{StaticResource Text.Section}" VerticalAlignment="Center" />
+                        <!-- Always masked at the strictest level: the copy never carries the target. -->
+                        <Button x:Name="CopyOverviewButton" Grid.Column="1" Content="Copy for AI" Style="{StaticResource CopyForAiButton}"
+                                Click="OnCopyOverviewForAi"
+                                ToolTip="Copies every phase and step with its state and findings count as text, with site names, URLs and paths hidden — whatever the screen mask is set to. Indigo while the run goes on: the copy is not final." />
+                    </Grid>
+
+                    <!-- What the analysis worked through, counted (never estimated); shown once the analysis has finished. -->
+                    <TextBlock Text="{Binding State.WorkSummary}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,0,0,10"
+                               Visibility="{Binding State.WorkSummary.Length, Converter={x:Static views:CountToVisibility.Instance}}"
+                               ToolTip="Counted while the run worked: files and bytes the analysis read, HTML documents parsed, texts and words prepared for the spell check, and dictionary lookups — those the dictionaries answered and those answered from the run's memory of words already checked." />
+
+                    <!-- Read a minute after the run ends: what the app holds while it waits for the next run. -->
+                    <TextBlock Text="{Binding State.AfterRunMemoryText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,0,0,10"
+                               Visibility="{Binding State.AfterRunMemoryText.Length, Converter={x:Static views:CountToVisibility.Instance}}"
+                               ToolTip="Read once, a minute after the run ended. Held: the memory the process keeps from Windows (on a virtual machine, from its host). After clean-up: what .NET still counted after its latest clean-up — the part the app is actually keeping, such as the loaded dictionaries and the results on screen." />
+
+                    <!-- Every step of the run, by phase, at most five per row; findings chips after the steps that feed a Results tab. -->
+                    <ItemsControl ItemsSource="{Binding State.Phases}" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,3" Visibility="{Binding ShowsInOverview, Converter={StaticResource BoolToVis}}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <!-- Same font and top margin as a step, so the phase name sits on its first row. -->
+                                    <TextBlock VerticalAlignment="Top" Margin="0,2,12,2" TextTrimming="CharacterEllipsis" ToolTip="{Binding ToolTipText}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Caption}">
+                                                <Setter Property="Foreground" Value="{DynamicResource Brush.TextDisabled}" />
+                                                <Setter Property="Text" Value="{Binding Title}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Status}" Value="Done">
+                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.TextDim}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Status}" Value="Running">
+                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Status}" Value="Stopped">
+                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.WarnText}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Status}" Value="Skipped">
+                                                        <Setter Property="Text" Value="{Binding Title, StringFormat={}{0} — skipped}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <ItemsControl Grid.Column="1" ItemsSource="{Binding Steps}" Focusable="False">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <UniformGrid Columns="5" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <!-- Glyph, step name, then its findings chip right after the name (never at the cell's edge). -->
+                                                <DockPanel Margin="0,2,12,2" LastChildFill="False">
+                                                    <TextBlock DockPanel.Dock="Left" Width="16" VerticalAlignment="Center" TextAlignment="Center">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Caption}">
+                                                                <Setter Property="Text" Value="○" />
+                                                                <Setter Property="Foreground" Value="{DynamicResource Brush.TextDisabled}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Done">
+                                                                        <Setter Property="Text" Value="✓" />
+                                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.Ok}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Running">
+                                                                        <Setter Property="Text" Value="●" />
+                                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.Accent}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Skipped">
+                                                                        <Setter Property="Text" Value="–" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Stopped">
+                                                                        <Setter Property="Text" Value="■" />
+                                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.Warn}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <TextBlock DockPanel.Dock="Left" Text="{Binding Label}" Margin="6,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                               ToolTip="{Binding Label}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Caption}">
+                                                                <Setter Property="Foreground" Value="{DynamicResource Brush.TextDisabled}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Done">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.TextDim}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Running">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
+                                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Stopped">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.WarnText}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <!-- The step's chip: findings (amber; red for broken links) or a fact (neutral). Hover or keyboard
+                                                         focus shows its overlay; a click opens its Results tab (or Output files) once the results are loaded. -->
+                                                    <Button DockPanel.Dock="Left" Margin="6,0,0,0" VerticalAlignment="Center" Focusable="True"
+                                                            MinHeight="0" MinWidth="0" Padding="0" BorderThickness="0" Background="Transparent"
+                                                            Click="OnOpenFindings"
+                                                            ToolTipService.ShowOnDisabled="True" ToolTipService.InitialShowDelay="500"
+                                                            ToolTipService.ShowsToolTipOnKeyboardFocus="True"
+                                                            Visibility="{Binding HasChip, Converter={StaticResource BoolToVis}}"
+                                                            AutomationProperties.Name="{Binding ChipToolTip}">
+                                                        <Button.ToolTip>
+                                                            <ToolTip MaxWidth="440">
+                                                                <StackPanel>
+                                                                    <TextBlock Text="{Binding ChipToolTip}" FontWeight="SemiBold" TextWrapping="Wrap"
+                                                                               Visibility="{Binding IsInfo, Converter={StaticResource InverseBoolToVis}}" />
+                                                                    <TextBlock Text="{Binding OverlayHeading}" FontWeight="SemiBold" TextWrapping="Wrap"
+                                                                               Visibility="{Binding HasOverlayHeading, Converter={StaticResource BoolToVis}}" />
+                                                                    <ItemsControl ItemsSource="{Binding OverlayLines}" Margin="0,4,0,0" Focusable="False">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate>
+                                                                                <TextBlock Text="{views:Masked}" TextWrapping="Wrap" />
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                    <TextBlock Text="{Binding OverlayNote}" TextWrapping="Wrap" Margin="0,6,0,0" Opacity="0.75"
+                                                                               Visibility="{Binding HasOverlayNote, Converter={StaticResource BoolToVis}}" />
+                                                                    <TextBlock Text="{Binding OpenHint}" TextWrapping="Wrap" Margin="0,6,0,0" Opacity="0.75"
+                                                                               Visibility="{Binding HasOpenHint, Converter={StaticResource BoolToVis}}" />
+                                                                </StackPanel>
+                                                            </ToolTip>
+                                                        </Button.ToolTip>
+                                                        <Button.Template>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Border x:Name="Pill" CornerRadius="7" Padding="6,0"
+                                                                        Background="{DynamicResource Brush.StaleSoft}" BorderThickness="1"
+                                                                        BorderBrush="Transparent">
+                                                                    <TextBlock x:Name="Count" Text="{Binding ChipText}" FontSize="11" LineHeight="15" LineStackingStrategy="BlockLineHeight"
+                                                                               VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}"
+                                                                               Typography.NumeralAlignment="Tabular" />
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsInfo}" Value="True">
+                                                                        <Setter TargetName="Count" Property="Foreground" Value="{DynamicResource Brush.TextDim}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding HasFindings}" Value="True">
+                                                                        <Setter TargetName="Pill" Property="Background" Value="{DynamicResource Brush.WarnSoft}" />
+                                                                        <Setter TargetName="Count" Property="Foreground" Value="{DynamicResource Brush.WarnText}" />
+                                                                        <Setter TargetName="Count" Property="FontWeight" Value="SemiBold" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsError}" Value="True">
+                                                                        <Setter TargetName="Pill" Property="Background" Value="{DynamicResource Brush.ErrorSoft}" />
+                                                                        <Setter TargetName="Count" Property="Foreground" Value="{DynamicResource Brush.ErrorText}" />
+                                                                        <Setter TargetName="Count" Property="FontWeight" Value="SemiBold" />
+                                                                    </DataTrigger>
+                                                                    <MultiDataTrigger>
+                                                                        <MultiDataTrigger.Conditions>
+                                                                            <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource TemplatedParent}}" Value="True" />
+                                                                            <Condition Binding="{Binding CanOpen}" Value="True" />
+                                                                        </MultiDataTrigger.Conditions>
+                                                                        <Setter TargetName="Pill" Property="BorderBrush" Value="{DynamicResource Brush.LineStrong}" />
+                                                                        <Setter Property="Cursor" Value="Hand" />
+                                                                    </MultiDataTrigger>
+                                                                    <Trigger Property="IsKeyboardFocused" Value="True">
+                                                                        <Setter TargetName="Pill" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Button.Template>
+                                                    </Button>
+                                                </DockPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Config checks raised during the run. -->
+            <ItemsControl ItemsSource="{Binding State.ConfigChecks}" ItemTemplate="{StaticResource ConfigCheckTemplate}" />
+
+            <!-- Messages and notices. -->
+            <Border Style="{StaticResource Hue.Card}" Margin="0,0,0,16"
+                    Visibility="{Binding State.Messages.Count, Converter={x:Static views:CountToVisibility.Instance}}">
+                <StackPanel>
+                    <TextBlock Text="MESSAGES" Style="{StaticResource Text.Section}" />
+                    <ItemsControl ItemsSource="{Binding State.Messages}" Margin="0,6,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="96" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <ContentControl Content="{Binding ToneWord}" Style="{Binding Tone, Converter={StaticResource TonePill}}"
+                                                    VerticalAlignment="Top" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{views:Masked Heading}" FontWeight="SemiBold" TextWrapping="Wrap" Style="{StaticResource Text.Body}"
+                                                   Visibility="{Binding HasHeading, Converter={StaticResource BoolToVis}}" />
+                                        <TextBlock Text="{views:Masked Text}" TextWrapping="Wrap" Style="{StaticResource Text.Body}"
+                                                   Visibility="{Binding HasText, Converter={StaticResource BoolToVis}}" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Finished steps. -->
+            <Border Style="{StaticResource Hue.Card}"
+                    Visibility="{Binding State.Steps.Count, Converter={x:Static views:CountToVisibility.Instance}}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="STEPS" Style="{StaticResource Text.Section}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <!-- Debug mode: the last archived run becomes the snapshot's baseline. -->
+                            <Button Content="Mark as baseline" Style="{StaticResource Hue.Button.Outline}" Margin="0,0,10,0"
+                                    Click="OnMarkBaseline"
+                                    Visibility="{Binding CanMarkBaseline, Converter={StaticResource BoolToVis}}"
+                                    ToolTip="Debug mode: later runs of this snapshot are compared with this run as well as with the previous one." />
+                            <!-- Always masked at the strictest level: the copy never carries the target. -->
+                            <Button x:Name="CopyStepsButton" Content="Copy for AI" Style="{StaticResource CopyForAiButton}"
+                                    Click="OnCopyStepsForAi"
+                                    ToolTip="Copies the steps with their times as text, with site names, URLs and paths hidden — whatever the screen mask is set to. Indigo while the run goes on: the copy is not final." />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding ArchiveNote}" Style="{StaticResource Text.Caption}" Margin="0,6,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding ArchiveNote, Converter={StaticResource TextToVis}}" />
+                    <DataGrid ItemsSource="{Binding State.Steps}" Style="{StaticResource Hue.DataGrid.Compact}"
+                              AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                              CanUserAddRows="False" Margin="0,8,0,0"
+                              ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                              PreviewMouseWheel="OnPassWheelToPage"
+                              AutomationProperties.Name="Finished steps">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Phase" Binding="{Binding Phase}" Width="140" />
+                            <DataGridTextColumn Header="Step" Binding="{views:Masked Label}" SortMemberPath="Label" Width="230" />
+                            <DataGridTextColumn Header="Result" Binding="{views:Masked Detail}" SortMemberPath="Detail" Width="*" />
+                            <DataGridTextColumn Header="Time" Binding="{Binding ElapsedText}" Width="80" />
+                            <DataGridTextColumn Header="Volume" Binding="{Binding WorkText}" Width="300" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

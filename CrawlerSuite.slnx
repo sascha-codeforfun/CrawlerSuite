@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="CrawlerSuite.Core\CrawlerSuite.Core.csproj" />
+  <Project Path="CrawlerSuite\CrawlerSuite.csproj" />
+  <Project Path="CrawlerSuite.Core.Tests\CrawlerSuite.Core.Tests.csproj" />
+</Solution>

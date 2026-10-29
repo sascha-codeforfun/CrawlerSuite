@@ -1,0 +1,1256 @@
+<UserControl x:Class="CrawlerSuite.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:CrawlerSuite.Views"
+             xmlns:hue="clr-namespace:HueThemeKit"
+             xmlns:run="clr-namespace:CrawlerSuite.Run"
+             x:Name="Root">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <views:InverseBoolToVisibility x:Key="InverseBoolToVis" />
+        <views:TextToVisibility x:Key="TextToVis" />
+        <FontFamily x:Key="Glyphs">Segoe MDL2 Assets</FontFamily>
+
+        <!-- The lock beside a setting: closed = the built-in default, open = set in the file. -->
+        <Style x:Key="LockButton" TargetType="Button" BasedOn="{StaticResource Hue.Button.Ghost}">
+            <Setter Property="Width" Value="36" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontFamily" Value="{StaticResource Glyphs}" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Content" Value="&#xE72E;" />
+            <Setter Property="ToolTip" Value="Default — click to set it in the file" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsSet}" Value="True">
+                    <Setter Property="Content" Value="&#xE785;" />
+                    <Setter Property="Foreground" Value="{DynamicResource Brush.Accent}" />
+                    <Setter Property="ToolTip" Value="Set in the file — click to use the default again" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- A choice's card and the free-space bar take their colour from the value. -->
+        <Style x:Key="ChoiceCard" TargetType="Border">
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="{DynamicResource Brush.OkSoft}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.OkEdge}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding CardTone}" Value="Caution">
+                    <Setter Property="Background" Value="{DynamicResource Brush.WarnSoft}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource Brush.WarnEdge}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding CardTone}" Value="Danger">
+                    <Setter Property="Background" Value="{DynamicResource Brush.ErrorSoft}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource Brush.ErrorEdge}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="SpaceBar" TargetType="ProgressBar">
+            <Setter Property="Height" Value="10" />
+            <Setter Property="Width" Value="360" />
+            <Setter Property="Minimum" Value="0" />
+            <Setter Property="Maximum" Value="1" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Background" Value="{DynamicResource Brush.LineSoft}" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding FreeSpaceRating}" Value="Low">
+                    <Setter Property="Foreground" Value="{DynamicResource Brush.Error}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding FreeSpaceRating}" Value="Some">
+                    <Setter Property="Foreground" Value="{DynamicResource Brush.Warn}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding FreeSpaceRating}" Value="Plenty">
+                    <Setter Property="Foreground" Value="{DynamicResource Brush.Ok}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Pieces of an XPath, coloured by kind. -->
+        <DataTemplate x:Key="XpathPieces">
+            <ItemsControl ItemsSource="{Binding}" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{views:Masked Text}" FontFamily="{StaticResource Font.Mono}" Foreground="{DynamicResource Brush.TextDim}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Kind}" Value="Name">
+                                            <Setter Property="Foreground" Value="{DynamicResource Brush.AccentText}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Kind}" Value="Attribute">
+                                            <Setter Property="Foreground" Value="{DynamicResource Brush.SourceLocalText}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Kind}" Value="Function">
+                                            <Setter Property="Foreground" Value="{DynamicResource Brush.OkText}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Kind}" Value="Text">
+                                            <Setter Property="Foreground" Value="{DynamicResource Brush.WarnText}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Kind}" Value="Axis">
+                                            <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </DataTemplate>
+
+        <!-- How much an entry was needed in the last run: bold numbers, a share bar, the date apart; amber card when it did nothing. -->
+        <Style x:Key="ShareBar" TargetType="ProgressBar">
+            <Setter Property="Height" Value="6" />
+            <Setter Property="Width" Value="120" />
+            <Setter Property="Minimum" Value="0" />
+            <Setter Property="Maximum" Value="1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{DynamicResource Brush.LineSoft}" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Accent}" />
+        </Style>
+        <DataTemplate x:Key="UsageBlock">
+            <StackPanel Margin="0,10,0,0">
+                <WrapPanel Visibility="{Binding IsCounts, Converter={StaticResource BoolToVis}}">
+                    <TextBlock views:UsageRuns.Runs="{Binding Runs}" Style="{StaticResource Text.Body}" VerticalAlignment="Center" Margin="0,0,14,0" />
+                    <ProgressBar Style="{StaticResource ShareBar}" Value="{Binding Share, Mode=OneWay, TargetNullValue=0}" Margin="0,0,14,0"
+                                 Visibility="{Binding HasShare, Converter={StaticResource BoolToVis}}" AutomationProperties.Name="Share of pages" />
+                    <TextBlock Text="{Binding DayText}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
+                </WrapPanel>
+                <TextBlock Text="{Binding Text}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap"
+                           Visibility="{Binding IsNote, Converter={StaticResource BoolToVis}}" />
+                <ContentControl Style="{StaticResource Hue.Callout.Warn}" Visibility="{Binding IsNothing, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding DayText}" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" />
+                    </StackPanel>
+                </ContentControl>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- A chip: tags, reference pages. -->
+        <Style x:Key="Chip" TargetType="Border">
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="Margin" Value="0,0,10,10" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="{DynamicResource Brush.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.LineStrong}" />
+        </Style>
+        <Style x:Key="ChipText" TargetType="Button" BasedOn="{StaticResource Hue.Button.Ghost}">
+            <Setter Property="Padding" Value="2,0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+            <Setter Property="ToolTip" Value="Click to edit" />
+        </Style>
+        <Style x:Key="ChipRemove" TargetType="Button" BasedOn="{StaticResource Hue.Button.Ghost}">
+            <Setter Property="Content" Value="×" />
+            <Setter Property="Padding" Value="4,0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Margin" Value="4,0,0,0" />
+            <Setter Property="ToolTip" Value="Remove" />
+            <Setter Property="AutomationProperties.Name" Value="Remove" />
+        </Style>
+
+        <!-- One table cell: a text, a multi-line text, a switch, a file with a picker, or language checkboxes. -->
+        <DataTemplate x:Key="TableCell">
+            <Grid>
+                <!-- One line of text that wraps: a long value (a path) shows whole in its cell; Enter adds no line break. -->
+                <views:MaskedTextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding CanEdit}"
+                         TextWrapping="Wrap" AcceptsReturn="False" VerticalContentAlignment="Center"
+                         AutomationProperties.Name="{Binding Header}"
+                         Visibility="{Binding IsText, Converter={StaticResource BoolToVis}}" />
+                <views:MaskedTextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding CanEdit}"
+                         AcceptsReturn="True" MinHeight="44" TextWrapping="NoWrap" AutomationProperties.Name="{Binding Header}"
+                         Visibility="{Binding IsMultiline, Converter={StaticResource BoolToVis}}" />
+                <hue:HueSwitch IsChecked="{Binding IsOn, Mode=TwoWay}" Style="{StaticResource Hue.Switch}" IsEnabled="{Binding CanEdit}"
+                               VerticalAlignment="Center" AutomationProperties.Name="{Binding Header}"
+                               Visibility="{Binding IsSwitch, Converter={StaticResource BoolToVis}}" />
+                <DockPanel Visibility="{Binding IsFile, Converter={StaticResource BoolToVis}}" LastChildFill="True">
+                    <Button DockPanel.Dock="Right" Content="…" Style="{StaticResource Hue.Button.Outline}" Margin="4,0,0,0" MinWidth="32"
+                            Click="OnBrowseCell" IsEnabled="{Binding CanEdit}" ToolTip="Choose…" />
+                    <views:MaskedTextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="{Binding Header}" />
+                </DockPanel>
+                <ItemsControl ItemsSource="{Binding Options}" Focusable="False" VerticalAlignment="Center"
+                              Visibility="{Binding IsLanguages, Converter={StaticResource BoolToVis}}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <views:UniformWrapPanel AllEqual="True" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <CheckBox Content="{Binding Code}" IsChecked="{Binding IsChecked, Mode=TwoWay}" IsEnabled="{Binding CanEdit}"
+                                      ToolTip="{Binding ToolTip}" Margin="0,2,14,2" FontFamily="{StaticResource Font.Mono}">
+                                <CheckBox.Style>
+                                    <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsInstalled}" Value="False">
+                                                <Setter Property="Opacity" Value="0.45" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </CheckBox.Style>
+                            </CheckBox>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
+        </DataTemplate>
+
+        <!-- A list or map as a table: headings, rows with their check, note and example, add. Never wider than the card. -->
+        <DataTemplate x:Key="SettingTable">
+            <StackPanel>
+                <DockPanel Margin="0,0,0,4" Visibility="{Binding ShowHeaders, Converter={StaticResource BoolToVis}}">
+                    <Border DockPanel.Dock="Right" Width="88" />
+                    <ItemsControl ItemsSource="{Binding Headers}" Focusable="False">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <views:ColumnsPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Header}" Style="{StaticResource Text.Caption}" FontWeight="SemiBold" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </DockPanel>
+                <ItemsControl ItemsSource="{Binding Rows}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,0,0,6">
+                                <DockPanel LastChildFill="True">
+                                    <Button DockPanel.Dock="Right" Content="Remove" Style="{StaticResource Hue.Button.Ghost}"
+                                            Width="80" Margin="8,0,0,0" VerticalAlignment="Top" Click="OnRemoveRow" IsEnabled="{Binding CanEdit}"
+                                            AutomationProperties.Name="Remove this entry" />
+                                    <ItemsControl ItemsSource="{Binding Cells}" ItemTemplate="{StaticResource TableCell}" Focusable="False">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <views:ColumnsPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                    </ItemsControl>
+                                </DockPanel>
+                                <TextBlock Text="{views:Masked Example}" Style="{StaticResource Text.Caption}" FontFamily="{StaticResource Font.Mono}" Margin="2,4,0,0"
+                                           Visibility="{Binding HasExample, Converter={StaticResource BoolToVis}}" />
+                                <TextBlock Text="{views:Masked Note}" Foreground="{DynamicResource Brush.WarnText}" TextWrapping="Wrap" Margin="2,4,0,0"
+                                           Visibility="{Binding HasNote, Converter={StaticResource BoolToVis}}" />
+                                <TextBlock Text="{views:Masked Problem}" Foreground="{DynamicResource Brush.ErrorText}" TextWrapping="Wrap" Margin="2,4,0,0"
+                                           Visibility="{Binding HasProblem, Converter={StaticResource BoolToVis}}" />
+                                <!-- How much the entry was needed in the latest run, for the tables that count it (download exclusions). -->
+                                <ContentControl Content="{Binding Usage}" ContentTemplate="{StaticResource UsageBlock}" Focusable="False" Margin="2,-4,0,0"
+                                                Visibility="{Binding HasUsage, Converter={StaticResource BoolToVis}}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="{Binding EmptyText}" Style="{StaticResource Text.Caption}" Margin="0,0,0,6"
+                           Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}" />
+                <Button Content="Add entry" Style="{StaticResource Hue.Button.Tonal}" HorizontalAlignment="Left" Margin="0,2,0,0"
+                        Click="OnAddRow" IsEnabled="{Binding CanEdit}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Tag names as <tag> chips; XPaths and attributes one per line, switchable, with last-run usage. -->
+        <DataTemplate x:Key="EntryList">
+            <StackPanel>
+                <!-- Chips -->
+                <StackPanel Visibility="{Binding IsTags, Converter={StaticResource BoolToVis}}">
+                    <WrapPanel>
+                        <ItemsControl ItemsSource="{Binding Entries}" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border>
+                                        <Border.Style>
+                                            <Style TargetType="Border" BasedOn="{StaticResource Chip}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasProblem}" Value="True">
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource Brush.ErrorEdge}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="{Binding Display}" Style="{StaticResource ChipText}" Click="OnEditEntry" IsEnabled="{Binding CanEdit}"
+                                                    Visibility="{Binding IsShowing, Converter={StaticResource BoolToVis}}" />
+                                            <views:MaskedTextBox Text="{Binding Value, UpdateSourceTrigger=LostFocus}" Width="140" FontFamily="{StaticResource Font.Mono}"
+                                                     IsVisibleChanged="OnEditBoxShown" KeyDown="OnEditBoxKey" AutomationProperties.Name="Tag name"
+                                                     Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}" />
+                                            <Button Style="{StaticResource ChipRemove}" Click="OnRemoveEntry" IsEnabled="{Binding CanEdit}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Content="{Binding AddText}" Style="{StaticResource Hue.Button.Tonal}" Margin="0,0,0,6" VerticalAlignment="Top"
+                                Click="OnAddEntry" IsEnabled="{Binding CanEdit}" />
+                    </WrapPanel>
+                    <ItemsControl ItemsSource="{Binding ProblemLines}" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{views:Masked}" Foreground="{DynamicResource Brush.ErrorText}" TextWrapping="Wrap" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- Lines -->
+                <StackPanel Visibility="{Binding IsLines, Converter={StaticResource BoolToVis}}">
+                    <ItemsControl ItemsSource="{Binding Entries}" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="12,10" Margin="0,0,0,10" CornerRadius="6" BorderThickness="1"
+                                        Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Line}">
+                                    <DockPanel LastChildFill="True">
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="12,0,0,0">
+                                            <hue:HueSwitch IsChecked="{Binding Enabled, Mode=TwoWay}" Style="{StaticResource Hue.Switch}" Content="Active"
+                                                           IsEnabled="{Binding CanEdit}" VerticalAlignment="Center"
+                                                           Visibility="{Binding List.CanSwitch, Converter={StaticResource BoolToVis}}"
+                                                           ToolTip="Off keeps the entry in the file without effect; it is still counted, so the next run shows whether it is needed." />
+                                            <Button Content="Remove" Style="{StaticResource Hue.Button.Ghost}" Margin="8,0,0,0" Click="OnRemoveEntry" IsEnabled="{Binding CanEdit}" />
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <Button Style="{StaticResource ChipText}" HorizontalAlignment="Left" HorizontalContentAlignment="Left"
+                                                    Click="OnEditEntry" IsEnabled="{Binding CanEdit}"
+                                                    Visibility="{Binding IsShowing, Converter={StaticResource BoolToVis}}">
+                                                <Grid>
+                                                    <ContentControl Content="{Binding Pieces}" ContentTemplate="{StaticResource XpathPieces}" Focusable="False"
+                                                                    Visibility="{Binding List.IsXpaths, Converter={StaticResource BoolToVis}}" />
+                                                    <TextBlock Text="{views:Masked Display}" FontFamily="{StaticResource Font.Mono}"
+                                                               Visibility="{Binding List.IsXpaths, Converter={StaticResource InverseBoolToVis}}" />
+                                                </Grid>
+                                            </Button>
+                                            <views:MaskedTextBox Text="{Binding Value, UpdateSourceTrigger=LostFocus}" FontFamily="{StaticResource Font.Mono}"
+                                                     IsVisibleChanged="OnEditBoxShown" KeyDown="OnEditBoxKey" AutomationProperties.Name="Entry"
+                                                     Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}" />
+                                            <TextBlock Text="{views:Masked Description}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,3,0,0"
+                                                       Visibility="{Binding HasDescription, Converter={StaticResource BoolToVis}}" />
+                                            <ContentControl Content="{Binding Usage}" ContentTemplate="{StaticResource UsageBlock}" Focusable="False"
+                                                            Visibility="{Binding HasUsage, Converter={StaticResource BoolToVis}}" />
+                                            <TextBlock Text="{views:Masked Problem}" Foreground="{DynamicResource Brush.ErrorText}" TextWrapping="Wrap" Margin="0,3,0,0"
+                                                       Visibility="{Binding HasProblem, Converter={StaticResource BoolToVis}}" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="No entries." Style="{StaticResource Text.Caption}" Margin="0,0,0,6"
+                               Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}" />
+                    <Button Content="{Binding AddText}" Style="{StaticResource Hue.Button.Tonal}" HorizontalAlignment="Left"
+                            Click="OnAddEntry" IsEnabled="{Binding CanEdit}" />
+                </StackPanel>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Boilerplate groups: one card each, with reference pages and parts. -->
+        <DataTemplate x:Key="BoilerplateGroups">
+            <StackPanel>
+                <ItemsControl ItemsSource="{Binding Groups}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="14,10" Margin="0,0,0,10" CornerRadius="8" BorderThickness="1"
+                                    Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.LineStrong}">
+                                <StackPanel>
+                                    <DockPanel LastChildFill="False">
+                                        <Button DockPanel.Dock="Right" Content="Remove group" Style="{StaticResource Hue.Button.Tonal.Error}"
+                                                Click="OnRemoveGroup" IsEnabled="{Binding CanEdit}" />
+                                        <TextBlock Text="Pages under" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        <views:MaskedTextBox Text="{Binding PathPrefix, UpdateSourceTrigger=LostFocus}" Width="320" FontFamily="{StaticResource Font.Mono}"
+                                                 IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Path prefix" />
+                                    </DockPanel>
+
+                                    <TextBlock Text="Reference pages — the parts are checked here once, and kept whole" Style="{StaticResource Text.Caption}" FontWeight="SemiBold" Margin="0,12,0,6" />
+                                    <WrapPanel>
+                                        <ItemsControl ItemsSource="{Binding ReferencePages}" Focusable="False">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border>
+                                                        <Border.Style>
+                                                            <Style TargetType="Border" BasedOn="{StaticResource Chip}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Seen}" Value="False">
+                                                                        <Setter Property="BorderBrush" Value="{DynamicResource Brush.WarnEdge}" />
+                                                                        <Setter Property="Background" Value="{DynamicResource Brush.WarnSoft}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <Button Content="{views:Masked Path}" Style="{StaticResource ChipText}" ToolTip="{Binding ToolTip}"
+                                                                    Click="OnEditReferencePage" IsEnabled="{Binding CanEdit}"
+                                                                    Visibility="{Binding IsShowing, Converter={StaticResource BoolToVis}}" />
+                                                            <views:MaskedTextBox Text="{Binding Path, UpdateSourceTrigger=LostFocus}" Width="260" FontFamily="{StaticResource Font.Mono}"
+                                                                     IsVisibleChanged="OnEditBoxShown" KeyDown="OnEditBoxKey" AutomationProperties.Name="Reference page"
+                                                                     Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}" />
+                                                            <Button Style="{StaticResource ChipRemove}" Click="OnRemoveReferencePage" IsEnabled="{Binding CanEdit}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Button Content="+ Add page" Style="{StaticResource Hue.Button.Tonal}" Margin="0,0,0,6" VerticalAlignment="Top"
+                                                Click="OnAddReferencePage" IsEnabled="{Binding CanEdit}" />
+                                    </WrapPanel>
+                                    <TextBlock Text="{Binding ReferenceWarning}" Foreground="{DynamicResource Brush.WarnText}" TextWrapping="Wrap"
+                                               Visibility="{Binding HasReferenceWarning, Converter={StaticResource BoolToVis}}" />
+
+                                    <TextBlock Text="Repeated parts cut from every other page" Style="{StaticResource Text.Caption}" FontWeight="SemiBold" Margin="0,12,0,6" />
+                                    <ItemsControl ItemsSource="{Binding Parts}" Focusable="False">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <DockPanel Margin="0,0,0,16" LastChildFill="True">
+                                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="12,0,0,0">
+                                                        <hue:HueSwitch IsChecked="{Binding Enabled, Mode=TwoWay}" Style="{StaticResource Hue.Switch}" Content="Active"
+                                                                       IsEnabled="{Binding CanEdit}" VerticalAlignment="Center"
+                                                                       ToolTip="Off keeps the part in the file without effect; it is still counted, so the next run shows whether it is needed." />
+                                                        <Button Content="Remove" Style="{StaticResource Hue.Button.Ghost}" Margin="8,0,0,0" Click="OnRemovePart" IsEnabled="{Binding CanEdit}" />
+                                                    </StackPanel>
+                                                    <ComboBox DockPanel.Dock="Left" ItemsSource="{Binding Types}" SelectedItem="{Binding Type, Mode=TwoWay}" Width="90"
+                                                              VerticalAlignment="Top" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Part type" />
+                                                    <StackPanel Margin="8,0,0,0">
+                                                        <views:MaskedTextBox Text="{Binding Value, UpdateSourceTrigger=LostFocus}" FontFamily="{StaticResource Font.Mono}"
+                                                                 IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Part value" />
+                                                        <TextBlock Text="{views:Masked ClassChip}" FontFamily="{StaticResource Font.Mono}" Foreground="{DynamicResource Brush.AccentText}"
+                                                                   Margin="0,3,0,0" ToolTip="An element must carry all of these classes"
+                                                                   Visibility="{Binding IsClass, Converter={StaticResource BoolToVis}}" />
+                                                        <ContentControl Content="{Binding Pieces}" ContentTemplate="{StaticResource XpathPieces}" Margin="0,3,0,0" Focusable="False"
+                                                                        Visibility="{Binding IsXpath, Converter={StaticResource BoolToVis}}" />
+                                                        <TextBlock Text="{views:Masked AttributeText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,3,0,0"
+                                                                   Visibility="{Binding AttributeText, Converter={StaticResource TextToVis}}" />
+                                                        <ContentControl Content="{Binding Usage}" ContentTemplate="{StaticResource UsageBlock}" Focusable="False"
+                                                                        Visibility="{Binding HasUsage, Converter={StaticResource BoolToVis}}" />
+                                                        <TextBlock Text="{views:Masked Problem}" Foreground="{DynamicResource Brush.ErrorText}" TextWrapping="Wrap" Margin="0,3,0,0"
+                                                                   Visibility="{Binding HasProblem, Converter={StaticResource BoolToVis}}" />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <Button Content="+ Add part" Style="{StaticResource Hue.Button.Tonal}" HorizontalAlignment="Left"
+                                            Click="OnAddPart" IsEnabled="{Binding CanEdit}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Button Content="+ Add group" Style="{StaticResource Hue.Button.Tonal}" HorizontalAlignment="Left"
+                        Click="OnAddGroup" IsEnabled="{Binding CanEdit}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- A free chip (an extension, a class, a marker): click to edit, × to remove, red edge when wrong. -->
+        <DataTemplate x:Key="FreeChip">
+            <Border>
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource Chip}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasProblem}" Value="True">
+                                <Setter Property="BorderBrush" Value="{DynamicResource Brush.ErrorEdge}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="{views:Masked Display}" Style="{StaticResource ChipText}" Click="OnEditChip" IsEnabled="{Binding CanEdit}"
+                            Visibility="{Binding IsShowing, Converter={StaticResource BoolToVis}}" />
+                    <views:MaskedTextBox Text="{Binding Value, UpdateSourceTrigger=LostFocus}" MinWidth="120" FontFamily="{StaticResource Font.Mono}"
+                             IsVisibleChanged="OnEditBoxShown" KeyDown="OnEditBoxKey" AutomationProperties.Name="Value"
+                             Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}" />
+                    <Button Style="{StaticResource ChipRemove}" Click="OnRemoveChip" IsEnabled="{Binding CanEdit}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- File kinds or heading classes: one row of equal-width chips (fixed choices, free ones, add), the explanation, amber when nothing is on. -->
+        <!-- Settings → Triage: the switches by family. Left (grey) off, middle (cyan) ride-along, right (green) on. -->
+        <DataTemplate x:Key="TriageModesEditor">
+            <StackPanel>
+                <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap"
+                           Text="Left (grey): off — not triaged. Middle (cyan): ride-along — goes into the ticket of a page that has other defects; never lists a page, nor an entry shared by several pages, by itself. Right (green): on." />
+                <ItemsControl ItemsSource="{Binding Families}" Margin="0,10,0,0" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="170" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,3,12,0">
+                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Summary}" Style="{StaticResource Text.Caption}" />
+                                </StackPanel>
+                                <ItemsControl Grid.Column="1" ItemsSource="{Binding Switches}" Focusable="False">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Width="300" Margin="0,2,16,4" ToolTip="{Binding ToolTipText}" ToolTipService.ShowOnDisabled="True">
+                                                <hue:HueSwitch IsThreeState="True" IsChecked="{Binding State, Mode=TwoWay}" Style="{StaticResource TriageSwitch}"
+                                                               IsEnabled="{Binding IsEnabled}" AutomationProperties.Name="{Binding Label}">
+                                                    <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                                                </hue:HueSwitch>
+                                                <TextBlock Text="{Binding ModeText}" Style="{StaticResource Text.Caption}" Margin="54,0,0,0"
+                                                           Visibility="{Binding ModeText, Converter={StaticResource TextToVis}}" />
+                                                <ContentControl Style="{StaticResource Hue.Callout.Warn}" Margin="0,6,0,0"
+                                                                Visibility="{Binding SecurityWarning, Converter={StaticResource TextToVis}}">
+                                                    <TextBlock Text="{Binding SecurityWarning}" TextWrapping="Wrap" />
+                                                </ContentControl>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate x:Key="ChipSet">
+            <StackPanel>
+                <ItemsControl ItemsSource="{Binding Items}" Focusable="False">
+                    <ItemsControl.Resources>
+                        <DataTemplate DataType="{x:Type run:ToggleChipVm}">
+                            <Border Style="{StaticResource Chip}" Padding="14,8">
+                                <CheckBox IsChecked="{Binding IsOn, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" VerticalAlignment="Center"
+                                          AutomationProperties.Name="{Binding Display}">
+                                    <StackPanel Margin="2,0,0,0">
+                                        <TextBlock Text="{Binding Display}" />
+                                        <TextBlock Text="{Binding Small}" Style="{StaticResource Text.Caption}" FontFamily="{StaticResource Font.Mono}" Margin="0,3,0,0"
+                                                   Visibility="{Binding HasSmall, Converter={StaticResource BoolToVis}}" />
+                                    </StackPanel>
+                                </CheckBox>
+                            </Border>
+                        </DataTemplate>
+                        <DataTemplate DataType="{x:Type run:FreeChipVm}">
+                            <ContentControl Content="{Binding}" ContentTemplate="{StaticResource FreeChip}" Focusable="False" />
+                        </DataTemplate>
+                        <DataTemplate DataType="{x:Type run:ChipAddVm}">
+                            <Button Content="{Binding Text}" Style="{StaticResource Hue.Button.Tonal}" Margin="0,0,10,10"
+                                    Click="OnAddChip" IsEnabled="{Binding CanEdit}" />
+                        </DataTemplate>
+                    </ItemsControl.Resources>
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <views:UniformWrapPanel AllEqual="{Binding IsKinds}" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+                <ItemsControl ItemsSource="{Binding ProblemLines}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{views:Masked}" Foreground="{DynamicResource Brush.ErrorText}" TextWrapping="Wrap" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <ContentControl Style="{StaticResource Hue.Callout.Warn}" Margin="0,6,0,0"
+                                Visibility="{Binding OffNote, Converter={StaticResource TextToVis}}">
+                    <TextBlock Text="{Binding OffNote}" TextWrapping="Wrap" />
+                </ContentControl>
+                <ContentControl Style="{StaticResource Hue.Callout}" Margin="0,6,0,0"
+                                Visibility="{Binding HasExplanation, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{Binding Explanation}" TextWrapping="Wrap" />
+                </ContentControl>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Suppression rules: one card each. -->
+        <DataTemplate x:Key="SuppressionCards">
+            <StackPanel>
+                <ItemsControl ItemsSource="{Binding Rules}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="14,10" Margin="0,0,0,10" CornerRadius="8" BorderThickness="1"
+                                    Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.LineStrong}">
+                                <StackPanel>
+                                    <DockPanel LastChildFill="True">
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="12,0,0,0">
+                                            <hue:HueSwitch IsChecked="{Binding Enabled, Mode=TwoWay}" Style="{StaticResource Hue.Switch}" Content="Active"
+                                                           IsEnabled="{Binding CanEdit}" VerticalAlignment="Center"
+                                                           ToolTip="Off keeps the rule in the file without effect, for testing what it hides." />
+                                            <Button Content="Remove" Style="{StaticResource Hue.Button.Ghost}" Margin="8,0,0,0" Click="OnRemoveSuppression" IsEnabled="{Binding CanEdit}" />
+                                        </StackPanel>
+                                        <TextBlock Text="Finding type" Style="{StaticResource Text.Caption}" Width="96" VerticalAlignment="Center" />
+                                        <ComboBox ItemsSource="{Binding TypeNames}" SelectedItem="{Binding TypeName, Mode=TwoWay}" IsEnabled="{Binding CanEdit}"
+                                                  HorizontalAlignment="Left" MinWidth="320" AutomationProperties.Name="Finding type" />
+                                    </DockPanel>
+                                    <ContentControl Style="{StaticResource Hue.Callout}" Margin="96,6,0,0"
+                                                    Visibility="{Binding IsKnown, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="{Binding CodeCard}" TextWrapping="Wrap" />
+                                    </ContentControl>
+                                    <ContentControl Style="{StaticResource Hue.Callout.Critical}" Margin="96,6,0,0"
+                                                    Visibility="{Binding IsKnown, Converter={StaticResource InverseBoolToVis}}">
+                                        <TextBlock Text="{views:Masked CodeCard}" TextWrapping="Wrap" />
+                                    </ContentControl>
+
+                                    <DockPanel Margin="0,10,0,0" LastChildFill="True">
+                                        <TextBlock Text="Value" Style="{StaticResource Text.Caption}" Width="96" VerticalAlignment="Center" />
+                                        <views:MaskedTextBox Text="{Binding Value, UpdateSourceTrigger=LostFocus}" FontFamily="{StaticResource Font.Mono}"
+                                                 IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Value"
+                                                 ToolTip="Optional. Matched case-sensitively inside the finding's detail. Empty: every finding of the type." />
+                                    </DockPanel>
+                                    <ContentControl Style="{StaticResource Hue.Callout.Warn}" Margin="96,6,0,0"
+                                                    Visibility="{Binding WholeTypeNote, Converter={StaticResource TextToVis}}">
+                                        <TextBlock Text="{Binding WholeTypeNote}" TextWrapping="Wrap" />
+                                    </ContentControl>
+
+                                    <DockPanel Margin="0,10,0,0" LastChildFill="True">
+                                        <TextBlock Text="Why (required)" Style="{StaticResource Text.Caption}" Width="96" VerticalAlignment="Center" />
+                                        <TextBox Text="{Binding Comment, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding CanEdit}"
+                                                 AutomationProperties.Name="Comment" />
+                                    </DockPanel>
+
+                                    <TextBlock Text="{views:Masked PagesNote}" Foreground="{DynamicResource Brush.WarnText}" TextWrapping="Wrap" Margin="96,6,0,0"
+                                               Visibility="{Binding HasPages, Converter={StaticResource BoolToVis}}" />
+                                    <ContentControl Content="{Binding Usage}" ContentTemplate="{StaticResource UsageBlock}" Focusable="False" Margin="96,0,0,0"
+                                                    Visibility="{Binding HasUsage, Converter={StaticResource BoolToVis}}" />
+                                    <TextBlock Text="{views:Masked Problem}" Foreground="{DynamicResource Brush.ErrorText}" TextWrapping="Wrap" Margin="96,3,0,0"
+                                               Visibility="{Binding HasProblem, Converter={StaticResource BoolToVis}}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Button Content="+ Add rule" Style="{StaticResource Hue.Button.Tonal}" HorizontalAlignment="Left"
+                        Click="OnAddSuppression" IsEnabled="{Binding CanEdit}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Unwanted-pattern groups: one card each, its fields by shape. -->
+        <DataTemplate x:Key="PatternCards">
+            <StackPanel>
+                <ItemsControl ItemsSource="{Binding Groups}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="14,10" Margin="0,0,0,10" CornerRadius="8" BorderThickness="1" Background="{DynamicResource Brush.Surface}">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="BorderBrush" Value="{DynamicResource Brush.LineStrong}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SecurityRelevant}" Value="True">
+                                                <Setter Property="BorderBrush" Value="{DynamicResource Brush.ErrorEdge}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel>
+                                    <!-- Shape, name, category; the switches -->
+                                    <DockPanel LastChildFill="False">
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="12,0,0,0">
+                                            <hue:HueSwitch IsChecked="{Binding SecurityRelevant, Mode=TwoWay}" Style="{StaticResource Hue.Switch}" Content="Security relevant"
+                                                           IsEnabled="{Binding CanEdit}" VerticalAlignment="Center"
+                                                           ToolTip="Findings of this group are marked Security and come first in Results, Triage and the ticket." />
+                                            <hue:HueSwitch IsChecked="{Binding Enabled, Mode=TwoWay}" Style="{StaticResource Hue.Switch}" Content="Active" Margin="16,0,0,0"
+                                                           IsEnabled="{Binding CanEdit}" VerticalAlignment="Center"
+                                                           ToolTip="Off keeps the group in the file without effect: not searched, not counted." />
+                                            <Button Content="Remove" Style="{StaticResource Hue.Button.Tonal.Error}" Margin="12,0,0,0"
+                                                    Click="OnRemovePatternGroup" IsEnabled="{Binding CanEdit}" />
+                                        </StackPanel>
+                                        <StackPanel Margin="0,0,12,0">
+                                            <TextBlock Text="Shape" Style="{StaticResource Text.Caption}" Margin="0,0,0,2" />
+                                            <ComboBox ItemsSource="{Binding Shapes}" SelectedItem="{Binding Shape, Mode=TwoWay}" Width="180"
+                                                      IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Shape" />
+                                        </StackPanel>
+                                        <StackPanel Margin="0,0,12,0">
+                                            <TextBlock Text="Name" Style="{StaticResource Text.Caption}" Margin="0,0,0,2" />
+                                            <TextBox Text="{Binding Name, UpdateSourceTrigger=LostFocus}" Width="240" IsEnabled="{Binding CanEdit}"
+                                                     AutomationProperties.Name="Group name" />
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock Text="Category" Style="{StaticResource Text.Caption}" Margin="0,0,0,2" />
+                                            <ComboBox ItemsSource="{Binding Categories}" Text="{Binding Category, UpdateSourceTrigger=LostFocus}" IsEditable="True" Width="160"
+                                                      IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Category" />
+                                        </StackPanel>
+                                    </DockPanel>
+
+                                    <!-- Words and markers -->
+                                    <StackPanel Margin="0,12,0,0" Visibility="{Binding IsWords, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="Markers" Style="{StaticResource Text.Caption}" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                        <WrapPanel>
+                                            <ItemsControl ItemsSource="{Binding Markers}" ItemTemplate="{StaticResource FreeChip}" Focusable="False">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                            </ItemsControl>
+                                            <Button Content="+ Add marker" Style="{StaticResource Hue.Button.Tonal}" Margin="0,0,0,6" VerticalAlignment="Top"
+                                                    Click="OnAddMarker" IsEnabled="{Binding CanEdit}" />
+                                        </WrapPanel>
+                                        <CheckBox Content="One finding per page for all markers together" IsChecked="{Binding OneFindingPerPage, Mode=TwoWay}"
+                                                  IsEnabled="{Binding CanEdit}" Margin="0,4,0,0" />
+                                    </StackPanel>
+
+                                    <!-- Placeholder or template binding: an opener and a closer -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0" Visibility="{Binding IsPair, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel Margin="0,0,12,0">
+                                            <TextBlock Text="Opener" Style="{StaticResource Text.Caption}" Margin="0,0,0,2" />
+                                            <TextBox Text="{Binding Opener, UpdateSourceTrigger=LostFocus}" Width="160" FontFamily="{StaticResource Font.Mono}"
+                                                     IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Opener" />
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock Text="Closer" Style="{StaticResource Text.Caption}" Margin="0,0,0,2" />
+                                            <TextBox Text="{Binding Closer, UpdateSourceTrigger=LostFocus}" Width="160" FontFamily="{StaticResource Font.Mono}"
+                                                     IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Closer" />
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <CheckBox Content="Case-sensitive" IsChecked="{Binding CaseSensitive, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" Margin="0,8,0,0" />
+
+                                    <!-- Placeholder: fold the findings of another group while it is open -->
+                                    <Button Content="+ Fold findings of another group" Style="{StaticResource Hue.Button.Tonal}" HorizontalAlignment="Left" Margin="0,10,0,0"
+                                            Click="OnRequestFold" IsEnabled="{Binding CanEdit}"
+                                            Visibility="{Binding ShowsFoldButton, Converter={StaticResource BoolToVis}}" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0" Visibility="{Binding ShowsFoldField, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="While open, fold the findings of" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        <ComboBox ItemsSource="{Binding ReferenceChoices}" SelectedItem="{Binding ReferenceShown, Mode=TwoWay}" MinWidth="220"
+                                                  IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Group to fold" />
+                                    </StackPanel>
+
+                                    <!-- More options: open by itself when one of them is in use -->
+                                    <Expander Header="More options" IsExpanded="{Binding ShowMore, Mode=TwoWay}" Margin="0,10,0,0">
+                                        <StackPanel Margin="0,6,0,0">
+                                            <CheckBox Content="Skip link targets (href)" IsChecked="{Binding ExcludeHref, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" Margin="0,0,0,4" />
+                                            <CheckBox Content="One finding per page for occurrences inside other URLs" IsChecked="{Binding ExcludeUrl, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" Margin="0,0,0,4" />
+                                            <CheckBox Content="Search inline scripts" IsChecked="{Binding CheckScript, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" Margin="0,0,0,4" />
+                                            <CheckBox Content="Search inline styles" IsChecked="{Binding CheckStyle, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" />
+                                        </StackPanel>
+                                    </Expander>
+
+                                    <ContentControl Style="{StaticResource Hue.Callout}" Margin="0,10,0,0">
+                                        <TextBlock Text="{views:Masked Explanation}" TextWrapping="Wrap" />
+                                    </ContentControl>
+                                    <ContentControl Content="{Binding Usage}" ContentTemplate="{StaticResource UsageBlock}" Focusable="False"
+                                                    Visibility="{Binding HasUsage, Converter={StaticResource BoolToVis}}" />
+                                    <TextBlock Text="{views:Masked Problem}" Foreground="{DynamicResource Brush.ErrorText}" TextWrapping="Wrap" Margin="0,3,0,0"
+                                               Visibility="{Binding HasProblem, Converter={StaticResource BoolToVis}}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Button Content="+ Add pattern group" Style="{StaticResource Hue.Button.Tonal}" HorizontalAlignment="Left"
+                        Click="OnAddPatternGroup" IsEnabled="{Binding CanEdit}" ToolTip="Choose a purpose as the starting point; every switch can be changed after." />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- A section heading's click target: the whole bar, highlighted under the pointer and with keyboard focus. -->
+        <Style x:Key="SectionHeader" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="True" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bar" Background="Transparent" CornerRadius="6" Padding="6,6" BorderThickness="1" BorderBrush="Transparent">
+                            <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bar" Property="Background" Value="{DynamicResource Brush.Hover}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bar" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- One setting: name, key and help on the left; the field; the lock. Tables and placeholder cards span the row below. -->
+        <DataTemplate x:Key="SettingRow">
+            <StackPanel>
+                <!-- The section heading: a full-width bar with a line under it; the whole bar folds and unfolds the section. -->
+                <Border Margin="0,28,0,10" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Brush.Line}"
+                        Visibility="{Binding HasSectionHeading, Converter={StaticResource BoolToVis}}">
+                    <Button Style="{StaticResource SectionHeader}" Click="OnToggleSection" Margin="0,0,0,6"
+                            ToolTip="Fold or unfold this section" AutomationProperties.Name="{Binding SectionHeadingText}">
+                        <DockPanel LastChildFill="True">
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding SectionCountText}" Style="{StaticResource Text.Caption}"
+                                       VerticalAlignment="Center" Margin="12,0,4,0" />
+                            <TextBlock DockPanel.Dock="Left" Text="{Binding SectionChevron}" FontSize="16" Width="22"
+                                       Foreground="{DynamicResource Brush.Accent}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding SectionHeading}" FontSize="18" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Brush.Text}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+                    </Button>
+                </Border>
+                <Border Padding="14,10" Margin="0,0,0,6" CornerRadius="8" BorderThickness="1"
+                        Background="{DynamicResource Brush.Raised}" BorderBrush="{DynamicResource Brush.Line}"
+                        Visibility="{Binding ShowsBody, Converter={StaticResource BoolToVis}}">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSet}" Value="False">
+                                    <Setter Property="Opacity" Value="0.6" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*" MinWidth="220" />
+                            <ColumnDefinition Width="3*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Margin="0,2,18,0">
+                            <TextBlock views:Highlight.Pieces="{Binding LabelPieces}" Style="{StaticResource Text.Body}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock views:Highlight.Pieces="{Binding KeyPieces}" Style="{StaticResource Text.Caption}" FontFamily="{StaticResource Font.Mono}" Margin="0,2,0,0" />
+                            <TextBlock views:Highlight.Pieces="{Binding HelpPieces}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                       Visibility="{Binding Help, Converter={StaticResource TextToVis}}" />
+                            <TextBlock Text="{Binding SearchNote}" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Brush.Accent}"
+                                       TextWrapping="Wrap" Margin="0,6,0,0"
+                                       Visibility="{Binding HasSearchNote, Converter={StaticResource BoolToVis}}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Top">
+                            <!-- Switch -->
+                            <hue:HueSwitch IsChecked="{Binding IsOn, Mode=TwoWay}" Style="{StaticResource Hue.Switch}" IsEnabled="{Binding IsEditable}"
+                                           HorizontalAlignment="Left" AutomationProperties.Name="{Binding Label}"
+                                           Visibility="{Binding IsSwitch, Converter={StaticResource BoolToVis}}" />
+                            <!-- Choice, with the card of the chosen value beside it -->
+                            <DockPanel Visibility="{Binding IsChoice, Converter={StaticResource BoolToVis}}" LastChildFill="True">
+                                <ComboBox DockPanel.Dock="Left" ItemsSource="{Binding Choices}" SelectedItem="{Binding Text, Mode=TwoWay}" IsEnabled="{Binding IsEditable}"
+                                          MinWidth="200" VerticalAlignment="Top" AutomationProperties.Name="{Binding Label}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={x:Static views:ChoiceText.Instance}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <Border Style="{StaticResource ChoiceCard}" Margin="16,0,0,0"
+                                        Visibility="{Binding HasCard, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{Binding CardText}" TextWrapping="Wrap" />
+                                </Border>
+                            </DockPanel>
+                            <TextBlock Text="{Binding ChoiceNote}" Foreground="{DynamicResource Brush.WarnText}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                       Visibility="{Binding ChoiceNote, Converter={StaticResource TextToVis}}" />
+                            <!-- Number: sized to its largest value, the unit beside it -->
+                            <StackPanel Orientation="Horizontal" Visibility="{Binding IsNumber, Converter={StaticResource BoolToVis}}">
+                                <views:MaskedTextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding IsEditable}" Width="{Binding FieldWidth}"
+                                         HorizontalContentAlignment="Right" AutomationProperties.Name="{Binding Label}" />
+                                <TextBlock Text="{Binding Unit}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                            </StackPanel>
+                            <!-- Text or path -->
+                            <DockPanel Visibility="{Binding IsSingleLine, Converter={StaticResource BoolToVis}}" LastChildFill="True">
+                                <Button DockPanel.Dock="Right" Content="…" Style="{StaticResource Hue.Button.Outline}" Margin="6,0,0,0" MinWidth="36"
+                                        Click="OnBrowse" IsEnabled="{Binding IsEditable}" ToolTip="Choose…"
+                                        Visibility="{Binding IsPath, Converter={StaticResource BoolToVis}}" />
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Unit}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                <views:MaskedTextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding IsEditable}"
+                                         AutomationProperties.Name="{Binding Label}" />
+                            </DockPanel>
+                            <!-- Processors: a slider from All, and what Windows reports -->
+                            <Grid Visibility="{Binding IsSlider, Converter={StaticResource BoolToVis}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Width="300">
+                                    <TextBlock Text="{Binding SliderText}" Style="{StaticResource Text.Heading}" />
+                                    <Slider Minimum="{Binding SliderMinimum}" Maximum="{Binding SliderMaximum}" Value="{Binding SliderValue, Mode=TwoWay}"
+                                            TickFrequency="1" IsSnapToTickEnabled="True" SmallChange="1" LargeChange="1"
+                                            IsEnabled="{Binding SliderEnabled}" Margin="0,4,0,0" AutomationProperties.Name="{Binding Label}" />
+                                    <DockPanel Margin="0,2,0,0">
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding SliderMaximum}" Style="{StaticResource Text.Caption}" />
+                                        <TextBlock Text="{Binding SliderMinimumText}" Style="{StaticResource Text.Caption}" />
+                                    </DockPanel>
+                                </StackPanel>
+                                <ItemsControl Grid.Column="1" ItemsSource="{Binding ProcessorLines}" Margin="24,0,0,0" Focusable="False"
+                                              Visibility="{Binding IsProcessors, Converter={StaticResource BoolToVis}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{views:Masked}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,0,0,2" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                            <TextBlock Text="{Binding ProcessorNote}" Foreground="{DynamicResource Brush.WarnText}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                       Visibility="{Binding ProcessorNote, Converter={StaticResource TextToVis}}" />
+                            <!-- JSON: entries with nested parts, or a value a table cannot hold -->
+                            <views:MaskedTextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding IsEditable}"
+                                     AcceptsReturn="True" TextWrapping="NoWrap" MinHeight="64" MaxHeight="280"
+                                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                     FontFamily="{StaticResource Font.Mono}" AutomationProperties.Name="{Binding Label}"
+                                     Visibility="{Binding IsMultiline, Converter={StaticResource BoolToVis}}" />
+                            <TextBlock Text="{views:Masked Error}" Foreground="{DynamicResource Brush.ErrorText}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                       Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}" />
+                            <!-- Free space of the download drive -->
+                            <StackPanel Margin="0,10,0,0" Visibility="{Binding HasFreeSpace, Converter={StaticResource BoolToVis}}">
+                                <ProgressBar Style="{StaticResource SpaceBar}" Value="{Binding UsedShare, Mode=OneWay}"
+                                             Visibility="{Binding HasDrive, Converter={StaticResource BoolToVis}}" AutomationProperties.Name="Drive usage" />
+                                <TextBlock Text="{views:Masked FreeSpaceText}" Style="{StaticResource Text.Body}" Margin="0,6,0,0" />
+                                <TextBlock Text="{Binding FreeSpaceExplain}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0"
+                                           Visibility="{Binding FreeSpaceExplain, Converter={StaticResource TextToVis}}" />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource Text.Caption}" Margin="0,4,0,0"
+                                       Visibility="{Binding IsRequired, Converter={StaticResource InverseBoolToVis}}">
+                                <Run Text="Default:" /> <Run Text="{Binding DefaultText, Mode=OneWay}" />
+                            </TextBlock>
+                            <TextBlock Text="Required." Style="{StaticResource Text.Caption}" Margin="0,4,0,0"
+                                       Visibility="{Binding ShowsRequired, Converter={StaticResource BoolToVis}}" />
+                            <TextBlock Text="{views:Masked RequiredProblem}" Foreground="{DynamicResource Brush.ErrorText}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                       Visibility="{Binding HasRequiredProblem, Converter={StaticResource BoolToVis}}" />
+                            <TextBlock Text="{Binding InactiveNote}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                       Visibility="{Binding HasInactiveNote, Converter={StaticResource BoolToVis}}" />
+                        </StackPanel>
+                        <Button Grid.Column="2" Style="{StaticResource LockButton}" Margin="12,0,0,0" VerticalAlignment="Top"
+                                Click="OnLock" IsEnabled="{Binding DataContext.CanEdit, ElementName=Root}"
+                                Visibility="{Binding IsRequired, Converter={StaticResource InverseBoolToVis}}"
+                                AutomationProperties.Name="Lock or unlock this setting" />
+
+                        <!-- Below the row: the table, and what a placeholder becomes for each site -->
+                        <StackPanel Grid.Row="1" Grid.ColumnSpan="2">
+                            <ContentControl Content="{Binding Table}" ContentTemplate="{StaticResource SettingTable}" Margin="0,12,0,0" Focusable="False"
+                                            Visibility="{Binding IsTable, Converter={StaticResource BoolToVis}}" />
+                            <ContentControl Content="{Binding Entries}" ContentTemplate="{StaticResource EntryList}" Margin="0,12,0,0" Focusable="False"
+                                            Visibility="{Binding IsEntryList, Converter={StaticResource BoolToVis}}" />
+                            <ContentControl Content="{Binding Boilerplate}" ContentTemplate="{StaticResource BoilerplateGroups}" Margin="0,12,0,0" Focusable="False"
+                                            Visibility="{Binding IsBoilerplate, Converter={StaticResource BoolToVis}}" />
+                            <ContentControl Content="{Binding Chips}" ContentTemplate="{StaticResource ChipSet}" Margin="0,12,0,0" Focusable="False"
+                                            Visibility="{Binding IsChipSet, Converter={StaticResource BoolToVis}}" />
+                            <ContentControl Content="{Binding TriageModes}" ContentTemplate="{StaticResource TriageModesEditor}" Margin="0,12,0,0" Focusable="False"
+                                            Visibility="{Binding IsTriageModes, Converter={StaticResource BoolToVis}}" />
+                            <ContentControl Content="{Binding Suppressions}" ContentTemplate="{StaticResource SuppressionCards}" Margin="0,12,0,0" Focusable="False"
+                                            Visibility="{Binding IsSuppressions, Converter={StaticResource BoolToVis}}" />
+                            <ContentControl Content="{Binding Patterns}" ContentTemplate="{StaticResource PatternCards}" Margin="0,12,0,0" Focusable="False"
+                                            Visibility="{Binding IsPatterns, Converter={StaticResource BoolToVis}}" />
+                            <Border Margin="0,12,0,0" Padding="12,8" CornerRadius="6" BorderThickness="1"
+                                    Background="{DynamicResource Brush.AccentSoft}" BorderBrush="{DynamicResource Brush.AccentEdge}"
+                                    Visibility="{Binding HasPlaceholders, Converter={StaticResource BoolToVis}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding PlaceholderNote}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" />
+                                    <ItemsControl ItemsSource="{Binding PlaceholderLines}" Margin="0,6,0,0" Focusable="False">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,0,0,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="180" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{views:MaskedSite Site}" Style="{StaticResource Text.Body}" FontWeight="SemiBold" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Grid.Column="1" Text="{views:Masked Values}" FontFamily="{StaticResource Font.Mono}" TextWrapping="Wrap" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- One site: every field, checked as it is typed. -->
+        <DataTemplate x:Key="SiteCard">
+            <Border Padding="16,12" Margin="0,0,0,10" CornerRadius="8" BorderThickness="1"
+                    Background="{DynamicResource Brush.Raised}" BorderBrush="{DynamicResource Brush.Line}"
+                    Visibility="{Binding IsSearchMatch, Converter={StaticResource BoolToVis}}">
+                <Grid IsEnabled="{Binding CanEdit}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="160" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Name" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
+                    <views:MaskedTextBox Hide="SiteName" Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=LostFocus}" AutomationProperties.Name="Site name" />
+                    <Button Grid.Column="2" Content="Remove" Style="{StaticResource Hue.Button.Tonal.Error}" Margin="12,0,0,0" Click="OnRemoveSite" />
+
+                    <TextBlock Grid.Row="1" Text="Address" Style="{StaticResource Text.Caption}" VerticalAlignment="Top" Margin="0,14,0,0" />
+                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,8,0,0">
+                        <views:MaskedTextBox Text="{Binding Url, UpdateSourceTrigger=LostFocus}" FontFamily="{StaticResource Font.Mono}" AutomationProperties.Name="Site address" />
+                        <TextBlock Text="{views:Masked UrlProblem}" Foreground="{DynamicResource Brush.ErrorText}" Margin="0,4,0,0"
+                                   Visibility="{Binding UrlProblem, Converter={StaticResource TextToVis}}" />
+                        <TextBlock Text="{views:Masked AsciiHost}" Style="{StaticResource Text.Caption}" Margin="0,4,0,0"
+                                   Visibility="{Binding AsciiHost, Converter={StaticResource TextToVis}}" />
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="2" Text="Allowed subdomains" Style="{StaticResource Text.Caption}" VerticalAlignment="Top" Margin="0,14,0,0" TextWrapping="Wrap" />
+                    <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,10,0,0">
+                        <hue:HueSwitch IsChecked="{Binding HasSubdomains, Mode=TwoWay}" Style="{StaticResource Hue.Switch}"
+                                       Content="This site has allowed subdomains" HorizontalAlignment="Left" />
+                        <StackPanel Margin="0,8,0,0" Visibility="{Binding HasSubdomains, Converter={StaticResource BoolToVis}}">
+                            <views:MaskedTextBox Text="{Binding SubdomainsText, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True" MinHeight="44"
+                                     FontFamily="{StaticResource Font.Mono}" AutomationProperties.Name="Allowed subdomains" />
+                            <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                       Text="One base address per line, e.g. https://help.example.com. Only these are followed besides the site itself." />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="3" Text="CMS content list" Style="{StaticResource Text.Caption}" VerticalAlignment="Top" Margin="0,14,0,0" TextWrapping="Wrap" />
+                    <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,10,0,0">
+                        <hue:HueSwitch IsChecked="{Binding UsesContentList, Mode=TwoWay}" Style="{StaticResource Hue.Switch}" HorizontalAlignment="Left"
+                                       Content="This site uses the CMS content list"
+                                       ToolTip="Off: the content list is not read for this site — no comparison (logs 04/05), page source, CMS links or post-crawl pass." />
+                        <Grid Margin="0,8,0,0" Visibility="{Binding UsesContentList, Converter={StaticResource BoolToVis}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Tenant" Style="{StaticResource Text.Caption}" VerticalAlignment="Top" Margin="0,8,0,0" />
+                            <StackPanel Grid.Column="1">
+                                <views:MaskedTextBox Text="{Binding Tenant, UpdateSourceTrigger=LostFocus}" AutomationProperties.Name="Tenant" />
+                                <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Text="Replaces {tenant} in shared settings such as the content list path. Needed while the site uses the content list." />
+                            </StackPanel>
+                            <TextBlock Grid.Row="1" Text="Production group" Style="{StaticResource Text.Caption}" VerticalAlignment="Top" Margin="0,16,0,0" />
+                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,8,0,0">
+                                <views:MaskedTextBox Text="{Binding ProductionGroup, UpdateSourceTrigger=LostFocus}" AutomationProperties.Name="Production group" />
+                                <TextBlock Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Text="Replaces {productiongroup}, used for CMS link routing. Needed while the site uses the content list." />
+                            </StackPanel>
+                            <hue:HueSwitch Grid.Row="2" Grid.Column="1" IsChecked="{Binding PostCrawlPass, Mode=TwoWay}" Style="{StaticResource Hue.Switch}"
+                                           Margin="0,10,0,0" HorizontalAlignment="Left"
+                                           Content="Post-crawl pass" ToolTip="After the crawl, also downloads pages the content list has that were not reached by links." />
+                        </Grid>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="0,12,0,0">
+                        <RadioButton GroupName="PrimarySite" Content="Primary site" IsChecked="{Binding IsPrimary, Mode=TwoWay}"
+                                     ToolTip="Preselected on the Crawl page. Exactly one site is the primary." />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid Margin="28,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <!-- Save beside the title, so the cards below get the room a bar of their own took; checked like a start, then written. -->
+            <DockPanel LastChildFill="True">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,14,0"
+                               TextWrapping="Wrap" MaxWidth="520" />
+                    <Button Content="Discard changes" Style="{StaticResource Hue.Button.Outline}" Click="OnDiscard"
+                            IsEnabled="{Binding IsDirty}" />
+                    <Button Content="Save" Style="{StaticResource Hue.Button.Primary}" Margin="10,0,0,0" MinWidth="110" Click="OnSave"
+                            IsEnabled="{Binding CanSave}" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Settings" Style="{StaticResource Text.Title}" />
+                    <TextBlock Text="{views:Masked FilePath}" Style="{StaticResource Text.Mono}" Margin="0,6,0,0" />
+                </StackPanel>
+            </DockPanel>
+            <ContentControl Style="{StaticResource Hue.Callout.Warn}" Margin="0,14,0,0"
+                            Visibility="{Binding Notice, Converter={StaticResource TextToVis}}">
+                <TextBlock Text="{views:Masked Notice}" TextWrapping="Wrap" />
+            </ContentControl>
+        </StackPanel>
+
+        <!-- The lock for the session: the warning first, then a deliberate tick. -->
+        <StackPanel Grid.Row="1" Margin="0,14,0,0">
+            <ContentControl Style="{StaticResource Hue.Callout.Warn}" Visibility="{Binding IsLocked, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <TextBlock Text="Settings are locked." FontWeight="SemiBold" />
+                    <TextBlock TextWrapping="Wrap" Margin="0,4,0,0"
+                               Text="The sites set here decide what this app downloads, stores on this computer and opens for analysis: every page, script, PDF and image they serve. Only aim it at sites whose content you trust as much as a file you would open yourself. A site you cannot vouch for can serve files made to do harm." />
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <CheckBox x:Name="TrustBox" Content="I trust the content of every site I aim this app at." VerticalAlignment="Center"
+                                  IsEnabled="{Binding IsRunning, Converter={x:Static views:Negate.Instance}}" />
+                        <Button Content="Unlock settings" Style="{StaticResource Hue.Button.Primary}" Margin="16,0,0,0"
+                                IsEnabled="{Binding IsChecked, ElementName=TrustBox}" Click="OnUnlock" />
+                    </StackPanel>
+                    <TextBlock Text="Settings stay locked while a crawl runs." Style="{StaticResource Text.Caption}" Margin="0,6,0,0"
+                               Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
+            </ContentControl>
+            <ContentControl Style="{StaticResource Hue.Callout}" Visibility="{Binding IsUnlocked, Converter={StaticResource BoolToVis}}">
+                <DockPanel LastChildFill="True">
+                    <Button DockPanel.Dock="Right" Content="Lock again" Style="{StaticResource Hue.Button.Outline}" Click="OnLockAll" />
+                    <TextBlock Text="Settings are unlocked for this session. Starting a crawl locks them again." VerticalAlignment="Center" TextWrapping="Wrap" />
+                </DockPanel>
+            </ContentControl>
+        </StackPanel>
+
+        <TabControl Grid.Row="2" ItemsSource="{Binding Tabs}" SelectedItem="{Binding SelectedTab, Mode=TwoWay}" Margin="0,8,0,0">
+            <TabControl.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+            </TabControl.ItemTemplate>
+            <TabControl.ContentTemplate>
+                <DataTemplate>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <!-- Per tab: show defaults, this tab's own search, fold or unfold its sections. -->
+                        <DockPanel Margin="0,0,12,14" LastChildFill="True">
+                            <hue:HueSwitch DockPanel.Dock="Left" Style="{StaticResource Hue.Switch}" Content="Show defaults" VerticalAlignment="Center" Margin="0,0,28,0"
+                                           IsChecked="{Binding DataContext.ShowDefaults, ElementName=Root, Mode=TwoWay}"
+                                           Visibility="{Binding DataContext.IsSitesTab, ElementName=Root, Converter={StaticResource InverseBoolToVis}}" />
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="20,0,0,0" VerticalAlignment="Center"
+                                        Visibility="{Binding HasSections, Converter={StaticResource BoolToVis}}">
+                                <Button Content="Fold all" Style="{StaticResource Hue.Button.Outline}" Click="OnFoldAll" />
+                                <Button Content="Unfold all" Style="{StaticResource Hue.Button.Outline}" Margin="8,0,0,0" Click="OnUnfoldAll" />
+                            </StackPanel>
+                            <Grid Width="340" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                <!-- The search applies once typing pauses (Delay), or at once on Enter. -->
+                                <TextBox x:Name="SearchBox" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=300}" Padding="10,6,34,6" VerticalContentAlignment="Center"
+                                         KeyDown="OnSearchKeyDown" AutomationProperties.Name="Search this tab"
+                                         ToolTip="Finds settings on this tab whose name, key, help or value contains the text (ignoring case). Enter searches at once, Esc clears." />
+                                <TextBlock Text="Search this tab" Margin="13,0,34,0" VerticalAlignment="Center" IsHitTestVisible="False">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Caption}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <Button Content="✕" Style="{StaticResource Hue.Button.Ghost}" HorizontalAlignment="Right" VerticalAlignment="Center" Padding="8,2" Margin="0,0,4,0"
+                                        Click="OnClearSearch" ToolTip="Clear the search"
+                                        Visibility="{Binding SearchActive, Converter={StaticResource BoolToVis}}" />
+                            </Grid>
+                        </DockPanel>
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                                      DataContextChanged="OnTabScrollerContextChanged" ScrollChanged="OnTabScrolled">
+                            <StackPanel Margin="0,0,12,12">
+                                <!-- Settings of the tab. -->
+                                <StackPanel Visibility="{Binding DataContext.IsSitesTab, ElementName=Root, Converter={StaticResource InverseBoolToVis}}">
+                                    <ContentControl Style="{StaticResource Hue.Callout}" Margin="0,0,0,12"
+                                                    Visibility="{Binding Note, Converter={StaticResource TextToVis}}">
+                                        <TextBlock Text="{Binding Note}" TextWrapping="Wrap" />
+                                    </ContentControl>
+                                    <ItemsControl ItemsSource="{Binding Shown}" ItemTemplate="{StaticResource SettingRow}" Focusable="False" />
+                                    <TextBlock Text="{Binding EmptyText}" Style="{StaticResource Text.Caption}" Margin="0,8,0,0"
+                                               Visibility="{Binding HasVisible, Converter={StaticResource InverseBoolToVis}}" />
+                                    <!-- Test levers: not settings. This session only, never saved. -->
+                                    <ContentControl Style="{StaticResource Hue.Callout.Warn}" Margin="0,28,0,0"
+                                                    Visibility="{Binding ShowsLevers, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel>
+                                            <TextBlock DataContext="{Binding DataContext, ElementName=Root}" Text="{views:Masked DebugFolderSize}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                                            <TextBlock TextWrapping="Wrap"
+                                                       Text="Test levers apply in Debug mode only. Switch Debug mode on above (Show defaults lists it while it is off) and save to use them. Outside Debug mode every run checks with the defaults."
+                                                       Visibility="{Binding DataContext.DebugModeOn, ElementName=Root, Converter={StaticResource InverseBoolToVis}}" />
+                                            <StackPanel DataContext="{Binding DataContext.Levers, ElementName=Root}"
+                                                        IsEnabled="{Binding DataContext.CanChangeLevers, ElementName=Root}"
+                                                        Visibility="{Binding DataContext.DebugModeOn, ElementName=Root, Converter={StaticResource BoolToVis}}">
+                                                <DockPanel LastChildFill="True">
+                                                    <Button DockPanel.Dock="Right" Content="Back to defaults" Style="{StaticResource Hue.Button.Outline}"
+                                                            Click="OnResetLevers" IsEnabled="{Binding IsDefault, Converter={x:Static views:Negate.Instance}}" />
+                                                    <TextBlock Text="Test levers: this session only" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                </DockPanel>
+                                                <TextBlock TextWrapping="Wrap" Margin="0,6,0,0"
+                                                           Text="For comparing runs. Not saved: every start begins with all clocks off and no taking turns. They apply only while Debug mode is on and saved; the next run uses what is set here and names it in its run steps (row &quot;Test levers&quot;). Locked while a run is going." />
+                                                <TextBlock Text="Library clocks: on, a search stops at the limit and the verdict can depend on machine load." Style="{StaticResource Text.Caption}" Margin="0,14,0,6" TextWrapping="Wrap" />
+                                                <hue:HueSwitch Style="{StaticResource Hue.Switch}" Content="{Binding CompoundCheckLabel}" IsChecked="{Binding CompoundCheckClock, Mode=TwoWay}" Margin="0,4,0,0" />
+                                                <hue:HueSwitch Style="{StaticResource Hue.Switch}" Content="{Binding CompoundSuggestLabel}" IsChecked="{Binding CompoundSuggestClock, Mode=TwoWay}" Margin="0,8,0,0" />
+                                                <hue:HueSwitch Style="{StaticResource Hue.Switch}" Content="{Binding SuggestStepLabel}" IsChecked="{Binding SuggestStepClock, Mode=TwoWay}" Margin="0,8,0,0" />
+                                                <hue:HueSwitch Style="{StaticResource Hue.Switch}" Content="{Binding SuggestGlobalLabel}" IsChecked="{Binding SuggestGlobalClock, Mode=TwoWay}" Margin="0,8,0,0" />
+                                                <TextBlock Text="Character variants: the MAP table of each .aff (e → é è ê …) in the test whether a long compound is a misspelt dictionary word. Kept, its work grows exponentially with the word's length: with the clocks off, one word can take minutes. Takes effect when the next run loads the dictionaries." Style="{StaticResource Text.Caption}" Margin="0,16,0,6" TextWrapping="Wrap" />
+                                                <hue:HueSwitch Style="{StaticResource Hue.Switch}" Content="Keep the character variants (MAP, the library's behaviour)" IsChecked="{Binding CharacterMap, Mode=TwoWay}" />
+                                                <TextBlock Text="Take turns: whether dictionary checks wait for each other." Style="{StaticResource Text.Caption}" Margin="0,16,0,6" TextWrapping="Wrap" />
+                                                <StackPanel Orientation="Horizontal">
+                                                    <RadioButton GroupName="TakeTurns" Content="None" IsChecked="{Binding TurnsNone, Mode=TwoWay}" />
+                                                    <RadioButton GroupName="TakeTurns" Content="Per language" IsChecked="{Binding TurnsPerLanguage, Mode=TwoWay}" Margin="16,0,0,0" />
+                                                    <RadioButton GroupName="TakeTurns" Content="Whole program" IsChecked="{Binding TurnsWholeProgram, Mode=TwoWay}" Margin="16,0,0,0" />
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Summary, StringFormat='Next run: {0}'}" Style="{StaticResource Text.Caption}" Margin="0,14,0,0" TextWrapping="Wrap" />
+                                                <!-- Memory manager: fixed at process start, so a choice takes effect through a restart. -->
+                                                <DockPanel LastChildFill="True" Margin="0,24,0,0">
+                                                    <Button DockPanel.Dock="Right" Content="Back to defaults" Style="{StaticResource Hue.Button.Outline}"
+                                                            Click="OnResetMemory" IsEnabled="{Binding MemoryIsDefault, Converter={x:Static views:Negate.Instance}}" />
+                                                    <TextBlock Text="Memory manager" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                </DockPanel>
+                                                <TextBlock TextWrapping="Wrap" Margin="0,6,0,0"
+                                                           Text="Which .NET memory manager the app runs with, to compare runs on this machine. .NET fixes it when the app starts, so a change takes effect through Restart with these: the app starts again with these settings for that one start (nothing is written to Windows) and closes the current window. A normal start always uses the defaults. Each run names what it ran with in its run steps (header line &quot;Memory manager&quot;)." />
+                                                <TextBlock Text="Collector: server with DATAS is the default. Workstation cleans up on one core while every thread waits; server cleans up on all cores. DATAS starts the server collector with one heap and adds heaps only when clean-up costs too much time; without it, every core gets a heap and its own allowance from the start." Style="{StaticResource Text.Caption}" Margin="0,14,0,6" TextWrapping="Wrap" />
+                                                <StackPanel Orientation="Horizontal">
+                                                    <RadioButton GroupName="Collector" Content="Workstation" IsChecked="{Binding CollectorWorkstation, Mode=TwoWay}" />
+                                                    <RadioButton GroupName="Collector" Content="Server with DATAS" IsChecked="{Binding CollectorServerDatas, Mode=TwoWay}" Margin="16,0,0,0" />
+                                                    <RadioButton GroupName="Collector" Content="Server without DATAS" IsChecked="{Binding CollectorServerClassic, Mode=TwoWay}" Margin="16,0,0,0" />
+                                                </StackPanel>
+                                                <TextBlock Text="Conserve memory: 0 is the default; higher levels clean up the oldest memory sooner and close the gaps in it, at some cost in time." Style="{StaticResource Text.Caption}" Margin="0,16,0,6" TextWrapping="Wrap" />
+                                                <ComboBox ItemsSource="{Binding ConserveLevels}" SelectedItem="{Binding ConserveMemory, Mode=TwoWay}" Width="80" HorizontalAlignment="Left" />
+                                                <TextBlock Text="Memory cap: makes the app behave as on a machine with that much memory. .NET cleans up harder as it nears the cap; a run that cannot fit under it stops with an out-of-memory error. It caps .NET's memory only: the program itself comes on top, so the process holds somewhat more." Style="{StaticResource Text.Caption}" Margin="0,16,0,6" TextWrapping="Wrap" />
+                                                <ComboBox ItemsSource="{Binding MemoryCaps}" DisplayMemberPath="Label" SelectedValuePath="Gigabytes"
+                                                          SelectedValue="{Binding MemoryCapGigabytes, Mode=TwoWay}" Width="100" HorizontalAlignment="Left" />
+                                                <TextBlock Text="{Binding MemoryInEffectText}" Style="{StaticResource Text.Caption}" Margin="0,14,0,0" TextWrapping="Wrap" />
+                                                <DockPanel LastChildFill="True" Margin="0,4,0,0">
+                                                    <Button DockPanel.Dock="Right" Content="Restart with these" Style="{StaticResource Hue.Button.Tonal}"
+                                                            Click="OnRestartWithMemory" IsEnabled="{Binding MemoryNeedsRestart}" />
+                                                    <TextBlock Text="{Binding MemoryChosenText}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                </DockPanel>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </ContentControl>
+                                </StackPanel>
+                                <!-- Sites. -->
+                                <StackPanel Visibility="{Binding DataContext.IsSitesTab, ElementName=Root, Converter={StaticResource BoolToVis}}">
+                                    <ContentControl Style="{StaticResource Hue.Callout.Warn}" Margin="0,0,0,12"
+                                                    Visibility="{Binding DataContext.HasSiteProblems, ElementName=Root, Converter={StaticResource BoolToVis}}">
+                                        <ItemsControl ItemsSource="{Binding DataContext.SiteProblems, ElementName=Root}" Focusable="False">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{views:Masked}" TextWrapping="Wrap" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ContentControl>
+                                    <ItemsControl ItemsSource="{Binding DataContext.Sites, ElementName=Root}" ItemTemplate="{StaticResource SiteCard}" Focusable="False" />
+                                    <TextBlock Text="{Binding DataContext.NoSiteMatch, ElementName=Root}" Style="{StaticResource Text.Caption}" Margin="0,0,0,10"
+                                               Visibility="{Binding DataContext.NoSiteMatch, ElementName=Root, Converter={StaticResource TextToVis}}" />
+                                    <Button Content="Add site" Style="{StaticResource Hue.Button.Tonal}" HorizontalAlignment="Left" Margin="0,4,0,0"
+                                            Click="OnAddSite" IsEnabled="{Binding DataContext.CanEdit, ElementName=Root}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                </DataTemplate>
+            </TabControl.ContentTemplate>
+        </TabControl>
+    </Grid>
+</UserControl>
