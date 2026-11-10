@@ -119,8 +119,8 @@ namespace CrawlerSuite.Core.Tests.SpellCheck
 		public void Enrich_CodeSource_SurfacesCertainWithSuggestionAndOffset()
 		{
 			var ctx = new SpellEnrichmentContext("padding" + Ff70 + "top", string.Empty, ScriptSource);
-			var e = Assert.Single(SpellEnrichments.For(ctx)
-				.Where(x => x.Kind == ConfusablePunctuationDetector.Kind));
+			var e = Assert.Single(SpellEnrichments.For(ctx),
+				x => x.Kind == ConfusablePunctuationDetector.Kind);
 			Assert.Equal(EnrichmentConfidence.Certain, e.Confidence);
 			Assert.Equal(new[] { 7 }, e.HighlightOffsets.ToArray());
 			Assert.Contains(e.Lines, l => l.Contains("padding-top"));

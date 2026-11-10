@@ -259,6 +259,7 @@ namespace CrawlerSuite.Core.Tests.Crawling
 			var (listed, notOnline, result) = List(export, new Content.OnlineFilter(" state ", "live*", SkipRows: 1, notOnlineFile));
 
 			Assert.Equal(["/content/ice.html", "/content/vapour.html"], listed);
+			Assert.NotNull(notOnline);
 			Assert.Equal(["/content/floe.html", "/content/tide.html"], notOnline); // an empty cell is no match either
 			Assert.Equal((2, 2, (string?)null, 4), (result.Listed, result.NotOnline, result.FilterOff, result.RowsRead));
 		}
@@ -298,6 +299,7 @@ namespace CrawlerSuite.Core.Tests.Crawling
 			var (listed, notOnline, _) = List(export, new Content.OnlineFilter("STATE", "Live", 0, OutputPath()));
 
 			Assert.Equal(["/content/ice.html"], listed);
+			Assert.NotNull(notOnline);
 			Assert.Equal([], notOnline);
 		}
 

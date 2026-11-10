@@ -30,6 +30,11 @@ nothing installed on the target machine.
 
 ---
 
+## Before you build or run it
+
+- **Talks to other computers:** connects to the internet.
+- **Reads or sends personal data:** reads the Windows user name and stored credentials.
+
 ## Getting started
 
 ### Requirements

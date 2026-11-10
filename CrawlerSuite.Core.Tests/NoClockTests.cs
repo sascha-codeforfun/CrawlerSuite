@@ -85,7 +85,7 @@ namespace CrawlerSuite.Core.Tests
 		}
 
 		[Fact]
-		public void Bundle_VerdictsUnderFullCpuLoad_AreUnchanged()
+		public async Task Bundle_VerdictsUnderFullCpuLoad_AreUnchanged()
 		{
 			// Every core busy while long compounds are checked by fresh bundles (nothing remembered).
 			using var stop = new CancellationTokenSource();
@@ -113,7 +113,7 @@ namespace CrawlerSuite.Core.Tests
 			finally
 			{
 				stop.Cancel();
-				Task.WaitAll(burners);
+				await Task.WhenAll(burners);
 			}
 		}
 

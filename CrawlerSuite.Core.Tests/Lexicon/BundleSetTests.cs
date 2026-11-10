@@ -106,7 +106,7 @@ namespace CrawlerSuite.Core.Tests.Lexicon
 
 			set.Release();
 
-			Assert.Equal(0, set.Count);
+			Assert.Empty(set);
 			Assert.Empty(set.Keys);
 			Assert.False(set.ContainsKey("de"));
 		}

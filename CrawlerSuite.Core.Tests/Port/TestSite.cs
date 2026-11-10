@@ -68,9 +68,10 @@ namespace CrawlerSuite.Core.Tests.Port
 						}
 					}
 				}
-				catch (Exception) when (true)
+				catch (Exception)
 				{
-					// The client hung up (expected for oversized files).
+					// The client hung up (expected for oversized files). Caught broadly on purpose:
+					// how a hang-up surfaces differs between platforms.
 				}
 			});
 
@@ -85,8 +86,9 @@ namespace CrawlerSuite.Core.Tests.Port
 				await ctx.Response.OutputStream.FlushAsync();
 				await Task.Delay(silence, stop.Token);
 			}
-			catch (Exception) when (true)
+			catch (Exception)
 			{
+				// The client hung up or the site stopped; either ends this answer.
 			}
 		});
 

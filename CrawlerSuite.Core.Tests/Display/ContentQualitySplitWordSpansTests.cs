@@ -139,7 +139,7 @@ namespace CrawlerSuite.Core.Tests
 			Assert.Equal("LinkText", Span(excerpt, TriageHighlights.SplitSpanKind.Inside));
 			Assert.Equal("r", Tail(excerpt));
 			// Close tag present; no open-tag span (only one Tag span, the close).
-			Assert.Single(spans.Where(s => s.Kind == TriageHighlights.SplitSpanKind.Tag));
+			Assert.Single(spans, s => s.Kind == TriageHighlights.SplitSpanKind.Tag);
 		}
 
 		[Fact]

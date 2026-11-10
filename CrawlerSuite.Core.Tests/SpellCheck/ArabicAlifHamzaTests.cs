@@ -83,8 +83,8 @@ namespace CrawlerSuite.Core.Tests.SpellCheck
 		{
 			EnrichmentDictionaries.Register("ar", MockAr);
 			var ctx = new SpellEnrichmentContext(Idghat, string.Empty, string.Empty);
-			var e = Assert.Single(SpellEnrichments.For(ctx)
-				.Where(x => x.Kind == ArabicAlifHamzaDetector.Kind));
+			var e = Assert.Single(SpellEnrichments.For(ctx),
+				x => x.Kind == ArabicAlifHamzaDetector.Kind);
 			Assert.Equal(EnrichmentConfidence.Medium, e.Confidence);
 			Assert.Empty(e.HighlightOffsets);            // prose-only
 			Assert.Contains(e.Lines, l => l.Contains(IdghatBare));

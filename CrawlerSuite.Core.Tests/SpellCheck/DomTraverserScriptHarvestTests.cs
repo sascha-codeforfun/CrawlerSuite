@@ -42,6 +42,7 @@ namespace CrawlerSuite.Core.Tests.SpellCheck
 			var run = runs.Single(r => r.Source == RunSource.Script);
 			Assert.Equal("hallo welt", run.RawText);
 			Assert.Equal("script[L1:9]", run.SourcePath);
+			Assert.NotNull(run.Node);
 			Assert.Equal("script", run.Node.Name);
 		}
 
@@ -55,6 +56,7 @@ namespace CrawlerSuite.Core.Tests.SpellCheck
 				checkJavaScript: true).ToList();
 
 			var run = runs.Single(r => r.Source == RunSource.Script);
+			Assert.NotNull(run.Node);
 			Assert.Equal("script", run.Node.Name);
 		}
 
