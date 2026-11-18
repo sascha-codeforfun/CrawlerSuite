@@ -123,8 +123,18 @@ namespace CrawlerSuite.Core.Quality
 					continue;
 				}
 
-				foreach (var ch in text)
+				for (int at = 0; at < text.Length; at++)
 				{
+					var ch = text[at];
+
+					// The leading BOM at the very start of the file is legitimate (EMBEDDED_BOM_IN_BODY
+					// says so): when the decoder kept it, it is the first character of the first text,
+					// and not counted here.
+					if (ch == '\uFEFF' && at == 0 && textNode.StreamPosition == 0)
+					{
+						continue;
+					}
+
 					// A soft hyphen is a hyphenation hint (a link text or teaser breaks cleanly on a narrow
 					// screen), intended in template text just as in editor prose: not reported. Only in
 					// title and meta, where nothing wraps, is it a finding (CONTROL_CHARS_IN_CONTENT).

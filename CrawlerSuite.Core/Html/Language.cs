@@ -41,8 +41,8 @@ namespace CrawlerSuite.Core.Html
 			var htmlLang = htmlNode?.GetAttributeValue("lang", string.Empty)?.Trim();
 			if (!string.IsNullOrWhiteSpace(htmlLang))
 			{
-				// Normalise "de-DE" → "de" etc.
-				var code = htmlLang.Split('-')[0].ToLowerInvariant();
+				// Normalise "de-DE" → "de" etc. — case and "_" first, then cut ("EN_gb" → "en").
+				var code = CrawlerSuite.Core.Lexicon.LanguageTags.BaseOf(htmlLang);
 				if (IsISO6391(code))
 				{
 					return code;
@@ -53,8 +53,9 @@ namespace CrawlerSuite.Core.Html
 			var langNode = doc.DocumentNode.SelectSingleNode("//meta[@name='language']");
 			if (langNode != null)
 			{
-				var metaLang = langNode.GetAttributeValue("content", string.Empty);
-				if (!string.IsNullOrWhiteSpace(metaLang) && IsISO6391(metaLang))
+				// A bare code only ("de", "EN"); written in any case.
+				var metaLang = CrawlerSuite.Core.Lexicon.LanguageTags.Normalize(langNode.GetAttributeValue("content", string.Empty));
+				if (IsISO6391(metaLang))
 				{
 					return metaLang;
 				}
@@ -70,13 +71,14 @@ namespace CrawlerSuite.Core.Html
 		public static string TagFromMeta(HtmlDocument doc, string fallback)
 		{
 			var htmlLang = doc.DocumentNode.SelectSingleNode("//html")?.GetAttributeValue("lang", string.Empty)?.Trim();
-			if (!string.IsNullOrWhiteSpace(htmlLang) && IsISO6391(htmlLang.Split('-')[0].ToLowerInvariant()))
+			if (!string.IsNullOrWhiteSpace(htmlLang) && IsISO6391(CrawlerSuite.Core.Lexicon.LanguageTags.BaseOf(htmlLang)))
 			{
 				return CrawlerSuite.Core.Lexicon.LanguageTags.Normalize(htmlLang);
 			}
 
-			var metaLang = doc.DocumentNode.SelectSingleNode("//meta[@name='language']")?.GetAttributeValue("content", string.Empty)?.Trim();
-			if (!string.IsNullOrWhiteSpace(metaLang) && IsISO6391(metaLang))
+			var metaLang = CrawlerSuite.Core.Lexicon.LanguageTags.Normalize(
+				doc.DocumentNode.SelectSingleNode("//meta[@name='language']")?.GetAttributeValue("content", string.Empty));
+			if (IsISO6391(metaLang))
 			{
 				return metaLang; // the same rule as FromMeta: a bare code only
 			}
@@ -135,7 +137,7 @@ namespace CrawlerSuite.Core.Html
 				return null;
 			}
 
-			var code = raw.Split('-')[0].ToLowerInvariant();
+			var code = CrawlerSuite.Core.Lexicon.LanguageTags.BaseOf(raw);
 			return IsISO6391(code) ? code : null;
 		}
 

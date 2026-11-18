@@ -22,6 +22,9 @@ public partial class RunView : UserControl
 
 	public event EventHandler? ReloadRequested;
 
+	/// <summary>A configuration was picked from those Reload offered.</summary>
+	public event EventHandler<string>? ConfigChosen;
+
 
 	public event EventHandler? ResultsRequested;
 
@@ -30,6 +33,16 @@ public partial class RunView : UserControl
 	private void OnQuickRun(object sender, RoutedEventArgs e) => QuickRunRequested?.Invoke(this, EventArgs.Empty);
 
 	private void OnReloadConfiguration(object sender, RoutedEventArgs e) => ReloadRequested?.Invoke(this, EventArgs.Empty);
+
+	private void OnConfigChosen(object sender, RoutedEventArgs e)
+	{
+		if (sender is FrameworkElement { DataContext: ConfigChoice choice })
+		{
+			ConfigChosen?.Invoke(this, choice.Path);
+		}
+	}
+
+	private void OnConfigChoicesClosed(object sender, RoutedEventArgs e) => (DataContext as RunPageModel)?.CloseConfigChoices();
 
 
 	private void OnViewResults(object sender, RoutedEventArgs e) => ResultsRequested?.Invoke(this, EventArgs.Empty);

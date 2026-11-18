@@ -53,6 +53,36 @@ namespace CrawlerSuite.Core.Tests.Quality
 			Assert.Null(HyphenSpacing.NameFrom(issue.Type, issue.Detail)); // nothing to keep as a name
 		}
 
+		// The opt-in house style: one space on each side of the slash passes; one side only does not.
+		private static List<(string Type, string Detail)> ScanSpacedSlashOk(string text)
+		{
+			var config = new ContentQualityConfig { AcceptSpacedSlash = true };
+			return HyphenSpacing.Scan("f.html", text, "p", HyphenSpacing.Joiners(config, ["de"]), config).Select(i => (i.IssueType, i.Detail)).ToList();
+		}
+
+		[Theory]
+		[InlineData("Stadt-/Landhaus")]
+		[InlineData("Stadt- / Landhaus")]
+		[InlineData("Hauseingänge/-ausgänge")]
+		[InlineData("Hauseingänge / -ausgänge")]
+		[InlineData("Wir suchen ein Stadt- / Landhaus mit Garten.")]
+		public void SpacedSlashSwitchedOn_TheSymmetricForm_Passes(string text) =>
+			Assert.Empty(ScanSpacedSlashOk(text));
+
+		[Theory]
+		[InlineData("Stadt- /Landhaus", "SPACE_AFTER_HYPHEN", "“Stadt- /Landhaus”")]
+		[InlineData("Stadt-/ Landhaus", "SPACE_AFTER_HYPHEN", "“Stadt-/ Landhaus”")]
+		[InlineData("Hauseingänge /-ausgänge", "SPACE_BEFORE_HYPHEN", "“Hauseingänge /-ausgänge”")]
+		[InlineData("Hauseingänge/ -ausgänge", "SPACE_BEFORE_HYPHEN", "“Hauseingänge/ -ausgänge”")]
+		public void SpacedSlashSwitchedOn_OneSideOnly_IsStillReported(string text, string type, string shown)
+		{
+			var issue = Assert.Single(ScanSpacedSlashOk(text));
+			Assert.Equal((type, "p: space at the slash in " + shown), issue);
+		}
+
+		[Fact]
+		public void SpacedSlash_IsOffByDefault() => Assert.False(new ContentQualityConfig().AcceptSpacedSlash);
+
 		// A stand-in for the German dictionary: the words these tests need, nothing else.
 		private static readonly HashSet<string> Words = new(StringComparer.Ordinal) { "Stadthaus", "Hausausgänge" };
 

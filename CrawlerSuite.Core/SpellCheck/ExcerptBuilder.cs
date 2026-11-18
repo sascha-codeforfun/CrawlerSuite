@@ -58,6 +58,10 @@ namespace CrawlerSuite.Core.SpellCheck
 					// the raw, possibly-escaped source) is neither needed nor correct.
 					return finding.ExcerptText ?? string.Empty;
 
+				case RunSource.Comment:
+					// A comment is no part of the block's text: its own text, around the word.
+					return Window(finding.ExcerptText ?? string.Empty, finding.Word);
+
 				case RunSource.TextNode:
 				default:
 					return BuildBlockExcerpt(finding);

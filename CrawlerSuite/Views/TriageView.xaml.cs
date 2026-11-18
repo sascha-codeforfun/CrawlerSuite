@@ -175,6 +175,16 @@ public partial class TriageView : UserControl
 
 	private void OnBack(object sender, RoutedEventArgs e) => Back();
 
+	private void OnResumeWalk(object sender, RoutedEventArgs e)
+	{
+		if (Model is { CanResume: true, IsPageOpen: false } model)
+		{
+			listOffset = Scroller.VerticalOffset;
+			model.ResumeWalk();
+			Scroller.ScrollToTop();
+		}
+	}
+
 	/// <summary>Back to the list, scrolled to where it was: rows are updated in place, not rebuilt.</summary>
 	private void Back()
 	{
@@ -193,11 +203,27 @@ public partial class TriageView : UserControl
 		}
 	}
 
+	private void OnPrevious(object sender, RoutedEventArgs e)
+	{
+		if (Model is { Page: { } page } model)
+		{
+			if (model.PreviousBefore(page.Url) is { } previous)
+			{
+				model.WalkTo(previous);
+				Scroller.ScrollToTop();
+			}
+			else
+			{
+				Back();
+			}
+		}
+	}
+
 	private void GoOn(TriageModel model, string url)
 	{
 		if (model.NextAfter(url) is { } next)
 		{
-			model.Open(next);
+			model.WalkTo(next);
 			Scroller.ScrollToTop();
 		}
 		else

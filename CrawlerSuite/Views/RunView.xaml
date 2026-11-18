@@ -101,11 +101,49 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
                     <StackPanel>
                         <!-- The site is picked at the top of the side menu; every page follows it. -->
                         <TextBlock Text="SITE TO CRAWL" Style="{StaticResource Text.Section}" />
                         <TextBlock Text="{views:Masked SelectedSite}" Style="{StaticResource Text.Heading}" Margin="0,8,0,0" />
                         <TextBlock Text="{views:Masked SelectedSite.Url}" Style="{StaticResource Text.Mono}" Margin="0,8,0,0" />
+                    </StackPanel>
+                    <!-- Reload with more than one configuration next to the program: one button each, a click loads it. -->
+                    <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,16,0,0"
+                                Visibility="{Binding ShowsConfigChoices, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="LOAD CONFIGURATION" Style="{StaticResource Text.Section}" />
+                        <WrapPanel Margin="0,8,0,0">
+                            <ItemsControl ItemsSource="{Binding ConfigChoices}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Content="{views:Masked Name}" Margin="0,0,10,8" MinWidth="110" Click="OnConfigChosen"
+                                                ToolTip="{views:Masked ToolTip}">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource Hue.Button.Outline}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsLoaded}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                            <Setter Property="Foreground" Value="{DynamicResource Brush.Accent}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="Cancel" Style="{StaticResource Hue.Button.Outline}" Margin="0,0,10,8" Click="OnConfigChoicesClosed" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding ConfigChoiceNote}" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Brush.WarnText}"
+                                   TextWrapping="Wrap" Visibility="{Binding ConfigChoiceNote, Converter={StaticResource TextToVis}}" />
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
                         <Button Content="Reload configuration" Style="{StaticResource Hue.Button.Outline}"

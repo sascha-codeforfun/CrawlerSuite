@@ -70,6 +70,58 @@ namespace CrawlerSuite.Core.Tests.Triage
 			Assert.Single(items, i => i.Type == CanonicalSource.Conflict);
 		}
 
+		private void WriteCanonicalsAndSearch()
+		{
+			Write("16-canonical-issues_comma.csv",
+				"PageUrl,IssueType,CanonicalUrl,Detail\r\n" +
+				"https://site.test/open.html,CANONICAL_CONFLICT,https://site.test/open.html,2 canonical tags found\r\n" +
+				"https://site.test/hidden.html,CANONICAL_CONFLICT,https://site.test/hidden.html,2 canonical tags found\r\n" +
+				"https://site.test/header.html,CANONICAL_CHAIN,https://site.test/b.html,Chain\r\n" +
+				"https://site.test/moved.html,CANONICAL_CHAIN,https://site.test/b.html,Chain\r\n");
+			Write("08-seo-data.csv",
+				"url;robots;title;title_length;description;description_length;keywords;source;h1_count;search\r\n" +
+				"https://site.test/open.html;;T;1;;0;;discovery;1;in search\r\n" +
+				"https://site.test/hidden.html;noindex;T;1;;0;;discovery;1;noindex in page\r\n" +
+				"https://site.test/header.html;;T;1;;0;;discovery;1;noindex by header\r\n" +
+				"https://site.test/moved.html;;T;1;;0;;discovery;1;canonical elsewhere\r\n");
+		}
+
+		[Fact]
+		public void Canonicals_OfNoindexPages_AreLeftOutOfTriage_ByDefault()
+		{
+			WriteCanonicalsAndSearch();
+
+			var pages = TriageSource.Read(snapshot).Where(i => CanonicalSource.IsCanonical(i.Type)).Select(i => i.Page).ToList();
+
+			// A page whose canonical names another stays: its canonical is the very thing in question.
+			Assert.Equal(["https://site.test/open.html", "https://site.test/moved.html"], pages);
+		}
+
+		[Fact]
+		public void Canonicals_OfNoindexPages_AreTriaged_WhenSwitchedOn()
+		{
+			WriteCanonicalsAndSearch();
+
+			var pages = TriageSource.Read(snapshot, canonicalsOfNoindexPages: true).Where(i => CanonicalSource.IsCanonical(i.Type)).ToList();
+
+			Assert.Equal(4, pages.Count);
+		}
+
+		[Fact]
+		public void SearchByPage_ReadsTheColumn_AndFallsBackToTheRobots()
+		{
+			Write("08-seo-data.csv",
+				"url;robots;title;title_length;description;description_length;keywords;source;h1_count\r\n" +
+				"https://site.test/a.html;index;T;1;;0;;discovery;1\r\n" +
+				"https://site.test/b.html;noindex;T;1;;0;;discovery;1\r\n");
+
+			var search = SeoSource.SearchByPage(snapshot);
+
+			Assert.Equal(CrawlerSuite.Core.SEO.Search.In, search["https://site.test/a.html"]);
+			Assert.Equal(CrawlerSuite.Core.SEO.Search.NoindexInPage, search["https://site.test/b.html"]);
+			Assert.Empty(SeoSource.SearchByPage(Path.Combine(snapshot, "download")));
+		}
+
 		[Fact]
 		public void WithoutTheLogs_NothingIsRead_AndVerdictsAreKept()
 		{

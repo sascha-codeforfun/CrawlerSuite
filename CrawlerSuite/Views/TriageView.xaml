@@ -104,7 +104,7 @@
                                             Visibility="{Binding HasValidIn, Converter={StaticResource BoolToVis}}" />
                         </StackPanel>
                         <views:CodeCell Value="{Binding Detail}" Margin="0,4,0,0" />
-                        <views:QualityContextCell Value="{Binding Context}" IssueType="{Binding Type}" Detail="{Binding Detail}" Margin="0,8,0,0" />
+                        <views:QualityContextCell Value="{Binding ContextShown}" IssueType="{Binding Type}" Detail="{Binding Detail}" Margin="0,8,0,0" />
                         <!-- A space at a hyphen that is part of a name: kept as a proper name by a click, as the finding has it. -->
                         <StackPanel Margin="0,10,0,0" Visibility="{Binding IsName, Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="A name written this way on purpose? Keep it as a proper name, exactly as written:" Style="{StaticResource Text.Caption}" />
@@ -310,6 +310,14 @@
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                 </ItemsControl>
+                                <ItemsControl ItemsSource="{Binding SearchChips}" ItemTemplate="{StaticResource FilterChipTemplate}" Focusable="False"
+                                              Margin="0,0,16,0">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
                                 <ItemsControl ItemsSource="{Binding DecisionChips}" ItemTemplate="{StaticResource FilterChipTemplate}" Focusable="False">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
@@ -318,6 +326,10 @@
                                     </ItemsControl.ItemsPanel>
                                 </ItemsControl>
                             </WrapPanel>
+                            <!-- After leaving a walk: the list is back at the row the walk started from; this reopens where it was left. -->
+                            <Button Content="{Binding ResumeText}" Style="{StaticResource Hue.Button.Tonal}" HorizontalAlignment="Left"
+                                    Margin="0,10,0,0" Click="OnResumeWalk"
+                                    Visibility="{Binding CanResume, Converter={StaticResource BoolToVis}}" />
                             <!-- Changes wait here until asked for, so the list never moves while pages are compared. -->
                             <ContentControl Style="{StaticResource Hue.Callout}" Margin="0,10,0,0"
                                             Visibility="{Binding HasPending, Converter={StaticResource BoolToVis}}">
@@ -337,16 +349,22 @@
                                       ScrollViewer.VerticalScrollBarVisibility="Disabled" PreviewMouseWheel="OnPassWheelToPage"
                                       AutomationProperties.Name="Pages with defects">
                                 <DataGrid.Columns>
-                                    <!-- Security / bidi badges: shown only when a page has one (see ShowBadgeColumn). -->
-                                    <DataGridTemplateColumn x:Name="BadgeColumn" Header="" Width="78" SortMemberPath="HasBidi" Visibility="Collapsed">
+                                    <!-- Security / bidi badges: shown only when a page has one (see ShowBadgeColumn). Every cell
+                                         holds a hidden copy of the widest pill, so all cells ask for the same width: the column
+                                         fits the pill at any font size and never widens while rows scroll into view. -->
+                                    <DataGridTemplateColumn x:Name="BadgeColumn" Header="" Width="Auto" SortMemberPath="HasBidi" Visibility="Collapsed">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <StackPanel HorizontalAlignment="Left">
-                                                    <ContentControl Content="security" Style="{StaticResource Hue.Pill.Error}" HorizontalAlignment="Left"
-                                                                    Visibility="{Binding HasSecurity, Converter={StaticResource BoolToVis}}" />
-                                                    <ContentControl Content="bidi" Style="{StaticResource Hue.Pill.Error}" HorizontalAlignment="Left"
-                                                                    Visibility="{Binding HasBidi, Converter={StaticResource BoolToVis}}" />
-                                                </StackPanel>
+                                                <Grid HorizontalAlignment="Left">
+                                                    <ContentControl Content="Security" Style="{StaticResource Hue.Pill.Error}" HorizontalAlignment="Left"
+                                                                    VerticalAlignment="Top" Visibility="Hidden" Focusable="False" IsHitTestVisible="False" />
+                                                    <StackPanel HorizontalAlignment="Left">
+                                                        <ContentControl Content="Security" Style="{StaticResource Hue.Pill.Error}" HorizontalAlignment="Left"
+                                                                        Visibility="{Binding HasSecurity, Converter={StaticResource BoolToVis}}" />
+                                                        <ContentControl Content="Bidi" Style="{StaticResource Hue.Pill.Error}" HorizontalAlignment="Left"
+                                                                        Visibility="{Binding HasBidi, Converter={StaticResource BoolToVis}}" />
+                                                    </StackPanel>
+                                                </Grid>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
@@ -361,7 +379,23 @@
                                     <DataGridTemplateColumn Header="Page" Width="2*" SortMemberPath="Url">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <views:UrlCell Value="{Binding Url}" Margin="0,4,0,4" />
+                                                <!-- In search, not in search, or unknown, ahead of the address: it decides what to fix first.
+                                                     Hidden copies of the two longest labels give every pill the same width. -->
+                                                <DockPanel Margin="0,4,0,4">
+                                                    <Grid DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,8,0" ToolTip="{Binding SearchReason}"
+                                                          AutomationProperties.HelpText="{Binding SearchReason}"
+                                                          Visibility="{Binding HasSearchStatus, Converter={StaticResource BoolToVis}}">
+                                                        <ContentControl Content="Not in search" Style="{StaticResource Hue.Pill}" Visibility="Hidden" Focusable="False" IsHitTestVisible="False" />
+                                                        <ContentControl Content="Search unknown" Style="{StaticResource Hue.Pill}" Visibility="Hidden" Focusable="False" IsHitTestVisible="False" />
+                                                        <ContentControl Content="In search" Style="{StaticResource Search.Pill.In}"
+                                                                        Visibility="{Binding ShowsInSearch, Converter={StaticResource BoolToVis}}" />
+                                                        <ContentControl Content="Not in search" Style="{StaticResource Search.Pill.Out}"
+                                                                        Visibility="{Binding ShowsNotInSearch, Converter={StaticResource BoolToVis}}" />
+                                                        <ContentControl Content="Search unknown" Style="{StaticResource Search.Pill.Unknown}"
+                                                                        Visibility="{Binding ShowsSearchUnknown, Converter={StaticResource BoolToVis}}" />
+                                                    </Grid>
+                                                    <views:UrlCell Value="{Binding Url}" />
+                                                </DockPanel>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
@@ -410,12 +444,35 @@
                     </Grid.ColumnDefinitions>
                     <Button Content="← All pages" Style="{StaticResource Hue.Button.Outline}" Click="OnBack" VerticalAlignment="Top" />
                     <StackPanel Grid.Column="1" Margin="16,0,16,0">
-                        <!-- Left-aligned: the copy button sits right after the address, not at the far end of the row. -->
-                        <views:UrlCell Value="{Binding Url}" HorizontalAlignment="Left" />
+                        <!-- Left-aligned: the copy button sits right after the address, not at the far end of the row.
+                             The search pill stands first: whether search visitors can land here decides how urgent the page is. -->
+                        <DockPanel HorizontalAlignment="Left">
+                            <Grid DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,10,0" ToolTip="{Binding SearchReason}"
+                                  AutomationProperties.HelpText="{Binding SearchReason}"
+                                  Visibility="{Binding HasSearchStatus, Converter={StaticResource BoolToVis}}">
+                                <ContentControl Content="Not in search" Style="{StaticResource Hue.Pill}" Visibility="Hidden" Focusable="False" IsHitTestVisible="False" />
+                                <ContentControl Content="Search unknown" Style="{StaticResource Hue.Pill}" Visibility="Hidden" Focusable="False" IsHitTestVisible="False" />
+                                <ContentControl Content="In search" Style="{StaticResource Search.Pill.In}"
+                                                Visibility="{Binding ShowsInSearch, Converter={StaticResource BoolToVis}}" />
+                                <ContentControl Content="Not in search" Style="{StaticResource Search.Pill.Out}"
+                                                Visibility="{Binding ShowsNotInSearch, Converter={StaticResource BoolToVis}}" />
+                                <ContentControl Content="Search unknown" Style="{StaticResource Search.Pill.Unknown}"
+                                                Visibility="{Binding ShowsSearchUnknown, Converter={StaticResource BoolToVis}}" />
+                            </Grid>
+                            <views:UrlCell Value="{Binding Url}" />
+                        </DockPanel>
                         <views:SourceCell Text="{Binding SourceText}" Link="{Binding CmsLink}" Role="{Binding SourceRole}" Address="{Binding NoSourceAddress}" HorizontalAlignment="Left" Margin="0,4,0,0" />
                         <TextBlock Text="{Binding DecisionSummary}" Style="{StaticResource Text.Caption}" Margin="0,4,0,0" />
                     </StackPanel>
-                    <Button Grid.Column="2" Content="Next page →" Style="{StaticResource Hue.Button.Outline}" Click="OnNext" VerticalAlignment="Top" />
+                    <!-- Previous and next row of the list on screen (chips applied, filed rows included), with where
+                         this page stands in it; at either end they go round. -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
+                        <Button Content="← Previous page" Style="{StaticResource Hue.Button.Outline}" Click="OnPrevious" Margin="0,0,10,0" />
+                        <TextBlock Text="{Binding DataContext.PagePosition, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,10,0" MinWidth="96"
+                                   TextAlignment="Center" />
+                        <Button Content="Next page →" Style="{StaticResource Hue.Button.Outline}" Click="OnNext" />
+                    </StackPanel>
                 </Grid>
 
                 <!-- Search appearance: the page as a search result would likely show it (desktop, estimated). -->

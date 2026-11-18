@@ -136,6 +136,43 @@ namespace CrawlerSuite.Core.Tests
 		}
 
 		[Fact]
+		public void ScanText_LookAlikeHyphensInStyleText_AreEachReportedOnce()
+		{
+			var outw = new StringWriter();
+			var sink = new List<ScriptWordHit>();
+
+			// One look-alike the tokenizer keeps in a word (U+FF70) and two it splits at (U+2014,
+			// U+2212); a nested string value and a digit-flanked minus are controls.
+			var outcome = BulkScriptScanner.ScanText(
+				"el.style.cssText = \"padding\uFF70top:4px;line\u2014height:2;max\u2212width:9px;content:'a\u2014b';width:a2\u2212b\";",
+				_ => "src", En, Checker(Bundle("el", "style", "px")), ScriptNode(), outw,
+				proseRatioGate: true, proseRatioTau: 0.4, findingSink: sink);
+
+			Assert.Equal(["padding\uFF70top", "line\u2014height", "max\u2212width"], sink.Select(h => h.Word).ToList());
+			Assert.Equal(3, outcome.Findings);
+		}
+
+		[Fact]
+		public void ScanText_ALookAlikeTheSpellCheckFinds_IsWrittenAsBefore_NewOnesLikeIt()
+		{
+			// The spell check reports the U+FF70 one itself: its line comes first and is unchanged;
+			// the one only the pre-scan finds follows with the same excerpt, the script around the string.
+			const string script = "var a = 1; el.style.cssText = \"opacity: 0; padding\uFF70top:4px; min\u2013height:2px\"; var b = 2;";
+			var sink = new List<ScriptWordHit>();
+			var outw = new StringWriter();
+
+			BulkScriptScanner.ScanText(script, _ => "src", En, Checker(Bundle("el", "style", "px", "opacity")), ScriptNode(), outw,
+				proseRatioGate: true, proseRatioTau: 0.9, findingSink: sink);
+
+			Assert.Equal(["padding\uFF70top", "min\u2013height"], sink.Select(h => h.Word).ToList());
+			Assert.Equal(sink[0].Excerpt, sink[1].Excerpt);
+			Assert.Contains("var a = 1;", sink[0].Excerpt);
+			var lines = outw.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries);
+			Assert.StartsWith("  padding\uFF70top\t", lines[0]);
+			Assert.StartsWith("  min\u2013height\t", lines[1]);
+		}
+
+		[Fact]
 		public void ScanText_GateOn_HighMissRatio_DemotedWithAuditNote()
 		{
 			var outw = new StringWriter();

@@ -130,6 +130,19 @@ namespace CrawlerSuite.Core.Tests.Links
 		// ── noindex behaviour ─────────────────────────────────────────────────────
 
 		[Fact]
+		public void GenerateSitemap_NoindexInASecondRobotsTag_IsExcluded()
+		{
+			File.WriteAllText(Path.Combine(_tempDir, "two-tags.html"),
+				"<html><head><meta name=\"robots\" content=\"index\"><meta content=\"noindex\" name=\"robots\"><title>T</title></head><body>T</body></html>",
+				Encoding.UTF8);
+			LoadIndex(("two-tags.html", "https://example.com/two-tags.html", "discovery"));
+
+			var xml = Sitemap.GenerateSitemap(_tempDir, [], [], "*.html");
+
+			Assert.DoesNotContain("two-tags", xml);
+		}
+
+		[Fact]
 		public void GenerateSitemap_DiscoveryPageWithNoIndex_IsExcluded()
 		{
 			WritePageAndIndex("disc-noindex.html", "https://example.com/disc-noindex.html",

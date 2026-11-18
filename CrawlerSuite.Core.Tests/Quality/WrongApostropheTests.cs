@@ -35,6 +35,22 @@ namespace CrawlerSuite.Core.Tests.Quality
 			Assert.Contains("U+2019", issue.Detail);
 		}
 
+		[Theory]
+		[InlineData("’Tis the season for a new start.")]
+		[InlineData("’Twas late when we left.")]
+		[InlineData("Tell ’em it starts at nine.")]
+		[InlineData("We stayed ’til the end.")]
+		[InlineData("Bring a coat ’cause it is cold.")]
+		public void EnglishApostropheOpeningTheWord_NoFinding(string text) =>
+			Assert.Empty(Check(text, "en"));
+
+		[Fact]
+		public void EnglishOpeningQuoteBeforeALongerWord_StillPairs()
+		{
+			// ‘…’ around a word that only starts like an elision: a quote, not an apostrophe.
+			Assert.Empty(Check("She called it ‘temporary’ for now.", "en"));
+		}
+
 		[Fact]
 		public void WordFinalOpeningQuote_IsNotReportedAsUnmatched()
 		{

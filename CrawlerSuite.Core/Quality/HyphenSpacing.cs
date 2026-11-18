@@ -182,16 +182,16 @@ namespace CrawlerSuite.Core.Quality
 			return match.Success ? (match.Groups["word"], match.Groups["gap"]) : null;
 		}
 
-		/// <summary>The joining words of the given languages (base codes, "de-DE" → "de"), lower case, without a final dot.</summary>
+		/// <summary>The joining words of the given languages (base codes, "de-DE" or "de_de" → "de"), lower case, without a final dot.</summary>
 		internal static HashSet<string> Joiners(ContentQualityConfig config, IEnumerable<string> languages)
 		{
 			var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 			foreach (var language in languages)
 			{
-				var code = language.Split('-')[0];
+				var code = CrawlerSuite.Core.Lexicon.LanguageTags.BaseOf(language);
 				foreach (var (key, words) in config.HyphenJoiningWords)
 				{
-					if (string.Equals(key.Split('-')[0], code, StringComparison.OrdinalIgnoreCase))
+					if (string.Equals(CrawlerSuite.Core.Lexicon.LanguageTags.BaseOf(key), code, StringComparison.Ordinal))
 					{
 						foreach (var word in words)
 						{
@@ -228,6 +228,14 @@ namespace CrawlerSuite.Core.Quality
 				bool spaceAfter = i + 1 < collapsed.Length && char.IsWhiteSpace(collapsed[i + 1]);
 				bool spaceBefore = i > 0 && char.IsWhiteSpace(collapsed[i - 1]);
 				bool wordAfter = i + 1 < collapsed.Length && char.IsLetter(collapsed[i + 1]);
+
+				// "Xyzzy- / Haus", "Xyzzy / -haus": one space on each side of the slash is a house style
+				// some sites choose; accepted when switched on. One side only is still a typo below.
+				if (config.AcceptSpacedSlash
+					&& ((wordBefore && SymmetricSlashAfter(collapsed, i)) || (wordAfter && SymmetricSlashBefore(collapsed, i))))
+				{
+					continue;
+				}
 
 				// "Xyzzy- / Haus", "Xyzzy-/ Haus": a slash after a suspended head is written without spaces ("Xyzzy-/Haus").
 				if (wordBefore && SlashAfter(collapsed, i) is { } slashed)
@@ -334,6 +342,16 @@ namespace CrawlerSuite.Core.Quality
 		/// After the hyphen at <paramref name="hyphen"/>: a slash with a space on either side and a word
 		/// after it — the part from the hyphen to that word ("- / Haus"); null otherwise.
 		/// </summary>
+		// "- / X": one space, the slash, one space, then a letter or digit.
+		private static bool SymmetricSlashAfter(string text, int hyphen) =>
+			hyphen + 4 < text.Length && text[hyphen + 1] == ' ' && text[hyphen + 2] == '/' && text[hyphen + 3] == ' '
+			&& char.IsLetterOrDigit(text[hyphen + 4]);
+
+		// "X / -": a letter or digit, one space, the slash, one space, then the hyphen.
+		private static bool SymmetricSlashBefore(string text, int hyphen) =>
+			hyphen >= 4 && text[hyphen - 1] == ' ' && text[hyphen - 2] == '/' && text[hyphen - 3] == ' '
+			&& char.IsLetterOrDigit(text[hyphen - 4]);
+
 		private static string? SlashAfter(string text, int hyphen)
 		{
 			int at = hyphen + 1;

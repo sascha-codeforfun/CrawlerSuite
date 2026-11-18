@@ -316,6 +316,7 @@ namespace CrawlerSuite.Core.SpellCheck
 			// German Ergänzungsstrich (suspended-compound) rescue applies only when German is among the
 			// page's languages — it is a German orthographic convention, irrelevant elsewhere.
 			bool germanInSet = languages.Any(l => l != null && l.StartsWith("de", StringComparison.OrdinalIgnoreCase));
+			bool englishInSet = languages.Any(l => l != null && CrawlerSuite.Core.Lexicon.LanguageTags.BaseOf(l) == "en");
 
 			// Re-expand to occurrences: tokenize ONCE (the list is shared by the ratio gate below
 			// and the emit loop, so the tokenizer runs a single time per literal).
@@ -521,6 +522,28 @@ namespace CrawlerSuite.Core.SpellCheck
 						continue;
 					}
 
+					// English words whose first letters an apostrophe stands for ("’tis" = it is,
+					// "’twas" = it was). The tokenizer drops the apostrophe, leaving a stem no dictionary
+					// holds. The same closed, hardcoded rule as the German reduced articles above: the
+					// page is English, the token is one of these stems, and a proclitic apostrophe stands
+					// right before it. A bare "tis" without the apostrophe still flags.
+					if (englishInSet
+						&& EnglishLeadingElisions.Contains(token.Text)
+						&& IsProcliticApostrophe(canonical, token.Start))
+					{
+						continue;
+					}
+
+					// A hashtag ("#auto"): written in whatever case the poster liked, so its case says
+					// nothing. Only a "#" glued to the word, standing at the start or after a space or an
+					// opening bracket or quote, makes one ("C#", "a#b" and "# auto" do not). The word
+					// passes when a dictionary of the run accepts it in another case — "#auto" because of
+					// "Auto" — so a typo ("#autto") still surfaces.
+					if (IsHashtag(canonical, token.Start) && AcceptedInAnotherCase(token.Text, languages, check))
+					{
+						continue;
+					}
+
 					// German parenthesised optional suffix ("Nachhaltigkeit(smanagement)" reads as both
 					// "Nachhaltigkeit" and "Nachhaltigkeitsmanagement"). The tokenizer splits the
 					// parentheses off, so the in-paren fragment ("smanagement", Fugen-s included) is checked
@@ -566,7 +589,9 @@ namespace CrawlerSuite.Core.SpellCheck
 						// literal (the surrounding assignment/call), built at extraction time and held on
 						// the run. Falls back to the canonical literal if no window was set. Every other
 						// source rebuilds its excerpt from the node, so this stays null for them.
-						ExcerptText = run.Source == RunSource.Script ? (run.ScriptContext ?? canonical) : null,
+						ExcerptText = run.Source == RunSource.Script ? (run.ScriptContext ?? canonical)
+							: run.Source == RunSource.Comment ? canonical
+							: null,
 					};
 				}
 			}
@@ -997,6 +1022,15 @@ namespace CrawlerSuite.Core.SpellCheck
 				"ne", "nem", "nen", "ner", "nes",
 			};
 
+		// English stems an apostrophe opens: "’tis", "’twas". Closed and hardcoded for the same reason
+		// as the German reduced articles: a suppression must never hide a typo. Words such as "em",
+		// "cause" or "til" that a dictionary may hold on their own need no entry here.
+		private static readonly IReadOnlySet<string> EnglishLeadingElisions =
+			new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+			{
+				"tis", "twas",
+			};
+
 		// True when the token at <paramref name="start"/> is immediately preceded by a PROCLITIC elision
 		// apostrophe: an apostrophe at a left boundary (start-of-string, whitespace, or any non-letter),
 		// as in "mit 'nem" → token "nem" with the leading "'" dropped by the tokenizer. An INTERNAL
@@ -1055,6 +1089,53 @@ namespace CrawlerSuite.Core.SpellCheck
 		// language(s) only. Returns true if any German dictionary accepts it (i.e. the lowercase flag
 		// was a false positive from a suspended compound). Capitalises the first letter only, which is
 		// all a German noun head needs ("auflösung" → "Auflösung").
+		// "#" right before the word, itself at the start or after whitespace or an opening bracket or quote.
+		internal static bool IsHashtag(string text, int start)
+		{
+			if (start < 1 || text[start - 1] != '#')
+			{
+				return false;
+			}
+
+			if (start == 1)
+			{
+				return true;
+			}
+
+			char before = text[start - 2];
+			return char.IsWhiteSpace(before) || before is '(' or '[' or '{' or '"' or '\'' or '«' or '»' or '„' or '“' or '‘' or '‹' or '›';
+		}
+
+		// Whether a dictionary of the run accepts the word all in small letters or with a capital first.
+		private static bool AcceptedInAnotherCase(string word, IReadOnlyList<string> languages, RunCheck check)
+		{
+			if (word.Length == 0)
+			{
+				return false;
+			}
+
+			var lower = word.ToLowerInvariant();
+			var capital = char.ToUpperInvariant(lower[0]) + lower[1..];
+			foreach (var variant in new[] { lower, capital }.Where(v => !string.Equals(v, word, StringComparison.Ordinal)).Distinct(StringComparer.Ordinal))
+			{
+				foreach (var language in languages)
+				{
+					if (language is null)
+					{
+						continue;
+					}
+
+					var misses = check(variant, language);
+					if (misses is null || !misses.Any(m => string.Equals(m.Word, variant, StringComparison.Ordinal)))
+					{
+						return true;
+					}
+				}
+			}
+
+			return false;
+		}
+
 		private static bool GermanAcceptsCapitalized(string lowerToken, IReadOnlyList<string> languages, RunCheck check)
 		{
 			if (lowerToken.Length == 0)

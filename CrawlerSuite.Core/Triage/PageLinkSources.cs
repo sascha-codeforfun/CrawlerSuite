@@ -89,6 +89,24 @@ namespace CrawlerSuite.Core.Triage
 		public static IEnumerable<string> KeptWithoutLogs(string snapshotDirectory, TriageLedger ledger) =>
 			HasLogs(snapshotDirectory) ? [] : ledger.Findings.Values.Where(f => IsCanonical(f.Type)).Select(f => f.Key).ToList();
 
+		/// <summary>
+		/// The keys of the canonical issues triage leaves out because their page is kept out of search
+		/// (Seo.TriageCanonicalsOfNoindexPages off): their verdicts are kept, so switching it on brings them back.
+		/// </summary>
+		public static IEnumerable<string> KeptForNoindexPages(string snapshotDirectory, bool canonicalsOfNoindexPages)
+		{
+			if (canonicalsOfNoindexPages)
+			{
+				return [];
+			}
+
+			var search = SeoSource.SearchByPage(snapshotDirectory);
+			return Read(snapshotDirectory, _ => null)
+				.Where(i => SeoSource.IsNoindex(search.TryGetValue(i.Page, out var s) ? s : null))
+				.SelectMany(i => i.Keys)
+				.ToList();
+		}
+
 		/// <summary>The ledger key: the issue, the page and the canonical it names (the detail lists more and may change wording).</summary>
 		public static string KeyOf(string type, string page, string canonical) => $"{type}|{page}|{canonical}";
 

@@ -1075,7 +1075,10 @@
                             IsEnabled="{Binding CanSave}" />
                 </StackPanel>
                 <StackPanel>
-                    <TextBlock Text="Settings" Style="{StaticResource Text.Title}" />
+                    <!-- Which configuration these settings are, loud: switching at Reload makes it easy to edit the wrong one. -->
+                    <TextBlock Text="SETTINGS OF CONFIGURATION" Style="{StaticResource Text.Section}" />
+                    <TextBlock Text="{views:Masked ConfigName}" Style="{StaticResource Text.Title}" Foreground="{DynamicResource Brush.Accent}"
+                               FontSize="30" Margin="0,4,0,0" />
                     <TextBlock Text="{views:Masked FilePath}" Style="{StaticResource Text.Mono}" Margin="0,6,0,0" />
                 </StackPanel>
             </DockPanel>

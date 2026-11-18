@@ -43,6 +43,7 @@ namespace CrawlerSuite.Core.Triage
 	/// <param name="Triaged">Items whose switch is on: they put the page on the list.</param>
 	/// <param name="RideAlong">Items that travel with the page's ticket but never list a page by themselves.</param>
 	/// <param name="LastFiled">The day the page was last filed; null when it never was.</param>
+	/// <param name="Search">The page's search column of log 08 (<see cref="SEO.Search"/>); null when log 08 does not list it.</param>
 	public sealed record PageSummary(
 		string Url,
 		IReadOnlyList<TriageItem> Triaged,
@@ -52,8 +53,12 @@ namespace CrawlerSuite.Core.Triage
 		IReadOnlyList<(string Family, int Count)> ByFamily,
 		IReadOnlyList<string> Tickets,
 		bool FiledBefore = false,
-		DateOnly? LastFiled = null)
+		DateOnly? LastFiled = null,
+		string? Search = null)
 	{
+		/// <summary>The page may appear in search, as far as the snapshot can tell: such pages are listed first after security and bidi.</summary>
+		public bool InSearch => PageSearchStatus.IsIn(Search);
+
 		/// <summary>The group the triage filter shows the page in.</summary>
 		public PageDecision Decision => DecisionOf(Status, FiledBefore);
 
@@ -76,8 +81,54 @@ namespace CrawlerSuite.Core.Triage
 	/// <summary>Builds the page list from a snapshot's items, the switches and the ledger.</summary>
 	public static class TriageBoard
 	{
+		/// <summary>
+		/// Where <paramref name="url"/> stands in <paramref name="list"/>: "Page 3 of 5", counted from one;
+		/// "Not in the list" with the list's size for a page opened from elsewhere.
+		/// </summary>
+		public static string Position(IReadOnlyList<string> list, string url)
+		{
+			for (int i = 0; i < list.Count; i++)
+			{
+				if (string.Equals(list[i], url, StringComparison.OrdinalIgnoreCase))
+				{
+					return $"Page {i + 1:N0} of {list.Count:N0}";
+				}
+			}
+
+			return list.Count == 1 ? "Not in the list (1 page)" : $"Not in the list ({list.Count:N0} pages)";
+		}
+
+		/// <summary>
+		/// The page <paramref name="step"/> places from <paramref name="url"/> in <paramref name="open"/>
+		/// (+1 next, -1 previous), going round at either end; null when there is no other page. A
+		/// page not in the list starts from its edge: the first page forward, the last one back.
+		/// </summary>
+		public static string? Neighbour(IReadOnlyList<string> open, string url, int step)
+		{
+			int at = -1;
+			for (int i = 0; i < open.Count; i++)
+			{
+				if (string.Equals(open[i], url, StringComparison.OrdinalIgnoreCase))
+				{
+					at = i;
+					break;
+				}
+			}
+
+			int others = at < 0 ? open.Count : open.Count - 1;
+			if (others == 0)
+			{
+				return null;
+			}
+
+			int next = at < 0 ? (step > 0 ? 0 : open.Count - 1) : ((at + step) % open.Count + open.Count) % open.Count;
+			return open[next];
+		}
+
+		/// <param name="searchByPage">Each page's search column of log 08 (<see cref="SeoSource.SearchByPage"/>); none: no page has a status.</param>
 		public static IReadOnlyList<PageSummary> Pages(
-			IEnumerable<TriageItem> items, IReadOnlyDictionary<string, TriageMode> modes, TriageLedger ledger)
+			IEnumerable<TriageItem> items, IReadOnlyDictionary<string, TriageMode> modes, TriageLedger ledger,
+			IReadOnlyDictionary<string, string>? searchByPage = null)
 		{
 			var pages = new List<PageSummary>();
 			foreach (var page in items.GroupBy(i => i.Page, StringComparer.OrdinalIgnoreCase))
@@ -107,12 +158,14 @@ namespace CrawlerSuite.Core.Triage
 					byFamily,
 					entry?.Tickets ?? [],
 					entry is { Filings.Count: > 0 },
-					entry is { Filings.Count: > 0 } ? entry.Filings.Max(f => f.At) : null));
+					entry is { Filings.Count: > 0 } ? entry.Filings.Max(f => f.At) : null,
+					searchByPage is not null && searchByPage.TryGetValue(page.Key, out var search) ? search : null));
 			}
 
 			return pages
 				.OrderByDescending(p => p.HasSecurity)
 				.ThenByDescending(p => p.HasBidi)
+				.ThenByDescending(p => p.InSearch) // a defect a search visitor can land on comes first
 				.ThenBy(p => SharedEntries.IsShared(p.Url)) // shared entries after the pages
 				.ThenBy(p => p.Status == PageStatus.Filed)
 				// A page ticketed before waits behind every page never ticketed — its editor has had a

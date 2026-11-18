@@ -384,6 +384,10 @@ namespace CrawlerSuite.Core.Settings
 			new("SpellCheckEngine.GlobalBooleanHtmlAttributesThatWillBeIgnored", "Spelling", "What is not checked", "Boolean attributes", SettingKind.Lines,
 				"On/off attributes such as disabled or checked, whose value is never prose. Unlocking starts from the built-in list; " +
 				"what is set here replaces it."),
+			new("SpellCheckEngine.CheckHtmlComments", "Spelling", "What is not checked", "Spell-check HTML comments", SettingKind.Switch,
+				"The text of <!-- … --> comments is checked too, each comment on its own in the page's language; conditional comments and " +
+				"code-shaped ones are left out. Off by default: comments are often another language or shorthand. Visitors do not see " +
+				"them, anyone reading the page source does."),
 			new("SpellCheckEngine.BoilerplateGroups", "Spelling", "What is not checked", "Boilerplate groups", SettingKind.Json,
 				"Repeated page parts (header, footer, navigation) spell-checked once, on their reference pages, and cut from every other " +
 				"page. The longest matching path decides the group of a page. A part of type attribute (@data-x for every element, " +
@@ -471,6 +475,8 @@ namespace CrawlerSuite.Core.Settings
 				"Two words run together where markup ends one and starts the next."),
 			new("ContentQuality.CheckHyphenSpacing", "Content quality", "Checks", "Space at a hyphen", SettingKind.Switch,
 				"A space after or before a hyphen inside a word (\"Xyzzy- Haus\", \"Xyzzy -Haus\"). A suspended head or tail next to a joining word or punctuation is correct and not reported."),
+			new("ContentQuality.AcceptSpacedSlash", "Content quality", "Checks", "Spaces around a slash at a hyphen are fine", SettingKind.Switch,
+				"House style: \"Stadt- / Landhaus\" with one space on each side of the slash is accepted. Off, only \"Stadt-/Landhaus\" passes. A space on one side only is reported either way."),
 			new("ContentQuality.HyphenJoiningWords", "Content quality", "Checks", "Words next to a suspended hyphen", SettingKind.Json,
 				"Per language: the words that may follow a suspended head (\"Haus- und …\") or precede a suspended tail (\"… und -ausgänge\"). Ignoring case and a final dot. A language without a list allows punctuation only."),
 			new("ContentQuality.CheckDoubledWords", "Content quality", "Checks", "Doubled words", SettingKind.Switch,
@@ -491,6 +497,10 @@ namespace CrawlerSuite.Core.Settings
 				"Prose that lost its paragraph markup."),
 			new("ContentQuality.CheckLanguageMismatch", "Content quality", "Checks", "Language mismatch", SettingKind.Switch,
 				"Pages whose html lang and meta language disagree."),
+			new("ContentQuality.CheckDuplicateAttributes", "Content quality", "Checks", "Duplicate attributes", SettingKind.Switch,
+				"An attribute written twice or more in one tag (rel=\"a\" rel=\"b\"). The finding lists the values in the order written; which one counts is not assumed."),
+			new("ContentQuality.CheckCommentAsText", "Content quality", "Checks", "Comments shown as text", SettingKind.Switch,
+				"HTML comments a page shows as text: the \"!\" left out (\"<--\"), a space after \"<\", or written with &lt;; their words are not reported again as misspellings."),
 			new("ContentQuality.CheckPotentialTranslation", "Content quality", "Checks", "Untranslated text", SettingKind.Switch,
 				"A page whose misspellings are mostly valid words of another language is reported once as possibly untranslated."),
 			new("ContentQuality.TranslationIssueErrorThreshold", "Content quality", "Checks", "Misspellings before that check", SettingKind.Number,
@@ -534,6 +544,8 @@ namespace CrawlerSuite.Core.Settings
 			// ── SEO & links ─────────────────────────────────────────────────────
 			new("Seo.TitleTemplates", "SEO & links", "Titles", "Title patterns", SettingKind.Lines,
 				"The site's title patterns, each with one {title} where the page's own title goes, e.g. \"{title} | Company\". Triage reports a page in search whose title matches none; the added text may be cut off in a result, so only the page's own part counts as cut off. Empty: no pattern check."),
+			new("Seo.TriageCanonicalsOfNoindexPages", "SEO & links", "Canonicals", "Canonical issues of noindex pages", SettingKind.Switch,
+				"Triage also lists canonical issues of pages kept out of search (noindex in the page or by header). Off: such a page is not indexed, so its canonical matters to no search engine and triage leaves it out. The logs and Results keep every issue either way."),
 			new("QueryStringsToIgnoreForSelfLinkDetermination", "SEO & links", "Links", "Query parameters ignored for self-links", SettingKind.Lines,
 				"Parameters ignored when deciding whether a link points to its own page."),
 			new("SitemapGeneratorExclusions", "SEO & links", "Sitemap", "Left out of the sitemap", SettingKind.Lines,

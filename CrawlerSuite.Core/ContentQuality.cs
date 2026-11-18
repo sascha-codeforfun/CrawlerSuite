@@ -292,6 +292,22 @@ namespace CrawlerSuite.Core
 					}
 				}
 
+				if (config.CheckCommentAsText)
+				{
+					foreach (var issue in CommentAsText.Check(filename, doc, config))
+					{
+						bag.Add(issue);
+					}
+				}
+
+				if (config.CheckDuplicateAttributes)
+				{
+					foreach (var issue in DuplicateAttributes.Check(filename, doc))
+					{
+						bag.Add(issue);
+					}
+				}
+
 				if (config.CheckControlCharsInContent)
 				{
 					foreach (var issue in ControlChars.Check(filename, doc, config))

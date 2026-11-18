@@ -260,6 +260,36 @@ namespace CrawlerSuite.Core.Tests.Quality
 		}
 
 		[Fact]
+		public void Check_LeadingBom_IsNotCountedAsAnInvisibleCharacter()
+		{
+			// The signature at offset 0 plus one BOM inside a template line: the invisible-character
+			// count names the embedded one only, as the embedded-BOM finding does.
+			var bomBytes = new byte[] { 0xEF, 0xBB, 0xBF };
+			var content = Encoding.UTF8.GetBytes("<html><body><nav><span>Menu\uFEFFItem</span></nav></body></html>");
+			var bytes = bomBytes.Concat(content).ToArray();
+			var html = Encoding.UTF8.GetString(bytes);
+
+			var issues = DefectTemplateAuthoring
+				.CheckCmsTemplateAuthoringDefects("test.html", bytes, html, MakeConfig())
+				.ToList();
+
+			var invisible = Assert.Single(issues, i => i.IssueType == "INVISIBLE_CHAR_IN_BODY");
+			Assert.Contains("at 1 position(s)", invisible.Detail);
+			Assert.Single(issues, i => i.IssueType == "EMBEDDED_BOM_IN_BODY");
+		}
+
+		[Fact]
+		public void Check_LeadingBomOnly_NoInvisibleCharacter()
+		{
+			var bytes = new byte[] { 0xEF, 0xBB, 0xBF }.Concat(Encoding.UTF8.GetBytes("<html><body><p>clean</p></body></html>")).ToArray();
+			var html = Encoding.UTF8.GetString(bytes);
+
+			Assert.DoesNotContain(
+				DefectTemplateAuthoring.CheckCmsTemplateAuthoringDefects("test.html", bytes, html, MakeConfig()),
+				i => i.IssueType == "INVISIBLE_CHAR_IN_BODY");
+		}
+
+		[Fact]
 		public void Check_LeadingBomOnly_NotFlagged()
 		{
 			// Legitimate UTF-8 signature; not a defect.

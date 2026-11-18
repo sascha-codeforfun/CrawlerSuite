@@ -169,25 +169,55 @@ namespace CrawlerSuite.Core.Display
 			char.IsLetterOrDigit(c)
 			|| char.GetUnicodeCategory(c) is System.Globalization.UnicodeCategory.NonSpacingMark or System.Globalization.UnicodeCategory.SpacingCombiningMark;
 
-		/// <summary>A spelling finding: every whole-word occurrence of the flagged word ("word (de)" → word) in red.</summary>
+		// name="…" (or name='…', or a bare name=value) for each copy of the attribute in a start tag.
+		private static IEnumerable<Mark> DuplicateAttributeMarks(string context, string? name)
+		{
+			if (string.IsNullOrEmpty(name))
+			{
+				yield break;
+			}
+
+			var pattern = new System.Text.RegularExpressions.Regex(
+				@"(?<=[\s<])" + System.Text.RegularExpressions.Regex.Escape(name) + @"=(?:""[^""]*""|'[^']*'|[^\s>]+)",
+				System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+			foreach (var m in pattern.Each(context))
+			{
+				yield return new Mark(m.Index, m.Length, MarkRole.Offender);
+			}
+		}
+
+		/// <summary>
+		/// A spelling finding: every whole-word occurrence of the flagged word ("word (de)" → word) in red.
+		/// Written as flagged where the line has it so; otherwise in any case — the spell check lists
+		/// "image" in a sentence under the finding for "Image" — so every occurrence it names is marked.
+		/// </summary>
 		internal static IEnumerable<Mark> SpelledWord(string context, string detail)
 		{
 			var word = Triage.SpellingSource.WordOf(detail);
 			if (word.Length == 0)
 			{
-				yield break;
+				return [];
 			}
 
-			for (int at = context.IndexOf(word, StringComparison.Ordinal); at >= 0; at = context.IndexOf(word, at + word.Length, StringComparison.Ordinal))
+			var exact = WholeWords(context, word, StringComparison.Ordinal);
+			return exact.Count > 0 ? exact : WholeWords(context, word, StringComparison.OrdinalIgnoreCase);
+		}
+
+		private static List<Mark> WholeWords(string context, string word, StringComparison comparison)
+		{
+			var marks = new List<Mark>();
+			for (int at = context.IndexOf(word, comparison); at >= 0; at = context.IndexOf(word, at + word.Length, comparison))
 			{
 				int end = at + word.Length;
 				bool startsWord = at == 0 || !char.IsLetterOrDigit(context[at - 1]);
 				bool endsWord = end == context.Length || !char.IsLetterOrDigit(context[end]);
 				if (startsWord && endsWord)
 				{
-					yield return new Mark(at, word.Length, MarkRole.Offender);
+					marks.Add(new Mark(at, word.Length, MarkRole.Offender));
 				}
 			}
+
+			return marks;
 		}
 
 		private static MarkedContext ForCore(string issueType, string context, string detail, ContentQualityConfig? config)
@@ -216,13 +246,17 @@ namespace CrawlerSuite.Core.Display
 						=> Plain(context, HiddenFocusable(context)),
 					"ARIA_REFERENCE_BROKEN" => Plain(context, BrokenReferences(context, detail)),
 					"SPLIT_WORD_ANCHOR" => Plain(context, TriageHighlights.ComputeSplitWordSpans(context).Select(Split)),
-					"WORD_COLLISION" => Plain(context, TriageHighlights.ComputeWordCollisionSpans(context).Select(Split)),
+					"WORD_COLLISION" => Plain(context, TriageHighlights.ComputeWordCollisionSpans(context, detail).Select(Split)),
 					"SPACE_AFTER_HYPHEN" or "SPACE_BEFORE_HYPHEN" => Plain(context, HyphenGap(context, issueType, detail)),
 					"WORD_DOUBLED" => Plain(context, Doubled(context, detail)),
 					"PUNCTUATION_WEAK" => Plain(context, Quality.DoubledWords.Spot(context, detail) is { } lead
 						? [new Mark(lead.First.Index, lead.First.Length, MarkRole.Warn), new Mark(lead.Second.Index, lead.Second.Length, MarkRole.Tint)]
 						: []),
 					"ADJACENT_ANCHOR" => Plain(context, TriageHighlights.ComputeAdjacentHintSpans(context).Select(Adjacent)),
+					// The comment that is no comment, opener to closer.
+					Quality.CommentAsText.IssueType => Plain(context, Quality.CommentAsText.Broken.Each(context).Select(m => new Mark(m.Index, m.Length, MarkRole.Offender))),
+					// Every copy of the doubled attribute in the start tag, name and value.
+					Quality.DuplicateAttributes.IssueType => Plain(context, DuplicateAttributeMarks(context, Quality.DuplicateAttributes.NameOf(detail))),
 					Triage.SpellingSource.Type => Plain(context, SpelledWord(context, detail)),
 					// The link back to the page: its address wherever the excerpt shows it.
 					Triage.SelfLinkSource.Type => Plain(context, Occurrences(context, [detail], MarkRole.Offender, ignoreCase: false)),

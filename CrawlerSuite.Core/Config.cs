@@ -1730,6 +1730,14 @@ namespace CrawlerSuite.Core
 		/// visible script is allowed).
 		/// </summary>
 		public List<string> TitleTemplates { get; set; } = [];
+
+		/// <summary>
+		/// Whether triage also lists canonical issues of pages kept out of search (noindex in the page
+		/// or by header). Off (the default): a search engine does not index such a page, so its
+		/// canonical tells nobody anything, and triage leaves the issue out. The logs and Results keep
+		/// every issue either way.
+		/// </summary>
+		public bool TriageCanonicalsOfNoindexPages { get; set; }
 	}
 
 	/// <summary>
@@ -1799,6 +1807,20 @@ namespace CrawlerSuite.Core
 		/// selection caused by an incorrect meta language tag.
 		/// </summary>
 		public bool CheckLanguageMismatch { get; set; } = true;
+
+		/// <summary>
+		/// Report HTML comments the page shows as text (COMMENT_AS_TEXT): an opener without its "!"
+		/// ("&lt;--"), with a space after "&lt;", or a comment written with entities, with a closer in the
+		/// same visible text. Browsers show these as text; the words inside are
+		/// then not reported again as misspellings.
+		/// </summary>
+		public bool CheckCommentAsText { get; set; } = true;
+
+		/// <summary>
+		/// Report an attribute written twice or more in one tag (DUPLICATE_ATTRIBUTE): browsers keep
+		/// the first and drop the rest, so with different values one is lost.
+		/// </summary>
+		public bool CheckDuplicateAttributes { get; set; } = true;
 
 		/// <summary>
 		/// Scan &lt;title&gt; text and &lt;meta&gt; content attributes for control
@@ -1924,9 +1946,18 @@ namespace CrawlerSuite.Core
 		/// When true, flags a space on the wrong side of a hyphen inside a word:
 		/// SPACE_AFTER_HYPHEN ("Xyzzy- Haus") and SPACE_BEFORE_HYPHEN ("Xyzzy -Haus"), where a
 		/// compound was meant. A suspended head or tail next to a joining word or punctuation
-		/// ("Haus- und Gartenpflege", "Hauseingänge / -ausgänge") is correct and not reported.
+		/// ("Haus- und Gartenpflege", "Hauseingänge/-ausgänge") is correct and not reported; a
+		/// slash with spaces next to one is ("Stadt- / Landhaus"), see <see cref="AcceptSpacedSlash"/>.
 		/// </summary>
 		public bool CheckHyphenSpacing { get; set; } = true;
+
+		/// <summary>
+		/// Opt-in house style: a slash next to a suspended hyphen with one space on each side
+		/// ("Stadt- / Landhaus", "Hauseingänge / -ausgänge") is accepted. Off, it is reported like
+		/// any spaced slash. A space on one side only ("Stadt- /Landhaus", "Stadt-/ Landhaus") is
+		/// reported either way.
+		/// </summary>
+		public bool AcceptSpacedSlash { get; set; }
 
 		/// <summary>
 		/// When true, flags a word written twice in a row inside one block of text (WORD_DOUBLED,
@@ -2033,7 +2064,8 @@ namespace CrawlerSuite.Core
 
 				["en"] = new ApostropheElisionProfile
 				{
-					SuffixElisions = ["s", "t", "d", "ll", "ve", "re", "m"],
+					// "tis", "twas", "em", "cause", "til": the apostrophe opens the word (’tis, ’em).
+					SuffixElisions = ["s", "t", "d", "ll", "ve", "re", "m", "tis", "twas", "em", "cause", "til"],
 					WordFinalSPossessive = true,
 				},
 
@@ -2192,7 +2224,7 @@ namespace CrawlerSuite.Core
 		/// </summary>
 		public int ContentQualityMaxExcerpt { get; set; } = 400;
 
-		public bool IsEnabled => CheckLigatures || CheckLanguageMismatch || CheckQuoteSystemMixing
+		public bool IsEnabled => CheckLigatures || CheckLanguageMismatch || CheckCommentAsText || CheckDuplicateAttributes || CheckQuoteSystemMixing
 			|| CheckQuotePairing || CheckPotentialTranslation || CheckSplitWordAnchors
 			|| CheckBareTextInContainers || CheckMisplacedAnchors
 			|| CheckWordCollisions

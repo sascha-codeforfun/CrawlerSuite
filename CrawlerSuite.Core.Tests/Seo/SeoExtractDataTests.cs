@@ -174,6 +174,17 @@ namespace CrawlerSuite.Core.Tests.Seo
 		}
 
 		[Fact]
+		public async Task SearchColumn_SeveralRobotsTags_TheMostRestrictiveWins()
+		{
+			var lines = await RunSingleAsync(
+				"<html><head><meta name=\"robots\" content=\"index,follow\"><meta name=\"robots\" content=\"noindex\"></head><body></body></html>",
+				UniqueHtmlName());
+			var cols = Cols(lines[1]);
+			Assert.Equal(CrawlerSuite.Core.SEO.Search.NoindexInPage, cols[9]);
+			Assert.Equal("index,follow, noindex", cols[1]);
+		}
+
+		[Fact]
 		public async Task SearchColumn_InSearch_WithoutNoindex()
 		{
 			var inSearch = await RunSingleAsync(Doc(title: "T"), UniqueHtmlName());

@@ -2430,6 +2430,32 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.StaleEdge}" />
     </Style>
 
+    <!-- A pill that fills the width it is given: the same look as Hue.PillTemplate, its border stretched, so
+         pills of one kind stacked in one cell (with a hidden copy of the longest label as the size template)
+         all show the same width. Used by the search pills in Triage. -->
+    <ControlTemplate x:Key="Hue.PillFillTemplate" TargetType="ContentControl">
+        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="1" CornerRadius="11" Height="22" Padding="8,0,10,0"
+                HorizontalAlignment="Stretch" VerticalAlignment="Center" SnapsToDevicePixels="True">
+            <StackPanel Orientation="Horizontal">
+                <Ellipse Width="6" Height="6" Margin="0,0,7,0" VerticalAlignment="Center" Fill="{TemplateBinding Foreground}" />
+                <ContentPresenter VerticalAlignment="Center" TextElement.FontSize="12" TextElement.FontWeight="Medium" />
+            </StackPanel>
+        </Border>
+    </ControlTemplate>
+    <Style x:Key="Search.Pill.In" TargetType="ContentControl" BasedOn="{StaticResource Hue.Pill.Accent}">
+        <Setter Property="Template" Value="{StaticResource Hue.PillFillTemplate}" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
+    <Style x:Key="Search.Pill.Out" TargetType="ContentControl" BasedOn="{StaticResource Hue.Pill.Stale}">
+        <Setter Property="Template" Value="{StaticResource Hue.PillFillTemplate}" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
+    <Style x:Key="Search.Pill.Unknown" TargetType="ContentControl" BasedOn="{StaticResource Hue.Pill}">
+        <Setter Property="Template" Value="{StaticResource Hue.PillFillTemplate}" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
+
     <!-- Page-source chips (Results and Triage): a pill that fills its column, so every chip in a
          column has the same width; the text is trimmed when it does not fit. Coloured by which
          configured key the page matched (Source.Chip.Mapped / External / Local), neutral otherwise. -->

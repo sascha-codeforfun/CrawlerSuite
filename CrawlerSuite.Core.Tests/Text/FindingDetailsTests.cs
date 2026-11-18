@@ -62,6 +62,13 @@ namespace CrawlerSuite.Core.Tests.Text
 		[InlineData("SPACE_BEFORE_HYPHEN", "p: “/” or a joining word missing before the hyphen in “Regenzeit -schauer”",
 			"p: „/“ oder ein Bindewort fehlt vor dem Bindestrich in „Regenzeit -schauer“")]
 		[InlineData("SPACE_AFTER_HYPHEN", "li: space at the slash in “Regen-/ Nebelzeit”", "li: Leerzeichen am Schrägstrich in „Regen-/ Nebelzeit“")]
+		// DuplicateAttributes
+		[InlineData("DUPLICATE_ATTRIBUTE", "Attribute “rel” written 2 times in <a>: first “noopener noreferrer”, then “noopener”",
+			"Attribut „rel“ 2-mal in <a>: zuerst „noopener noreferrer“, dann „noopener“")]
+		[InlineData("DUPLICATE_ATTRIBUTE", "Attribute “id” written 3 times in <div>: first “a”, then “b”, “c” (×2 on this page)",
+			"Attribut „id“ 3-mal in <div>: zuerst „a“, dann „b“, „c“ (×2 auf dieser Seite)")]
+		[InlineData("DUPLICATE_ATTRIBUTE", "Attribute “class” written 2 times in <span>, the same value each time: “tea”",
+			"Attribut „class“ 2-mal in <span>, jedes Mal derselbe Wert: „tea“")]
 		// DoubledWords
 		[InlineData("WORD_DOUBLED", "p: the word twice in “Eis Eis”", "p: das Wort zweimal in „Eis Eis“")]
 		[InlineData("PUNCTUATION_WEAK", "li: “Wellen” before a line break and again after it — a colon would mark it as the lead-in (“Wellen:”)",

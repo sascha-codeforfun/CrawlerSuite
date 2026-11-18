@@ -66,10 +66,14 @@ namespace CrawlerSuite.Core.Triage
 		/// <summary>Numbers neutralised, whitespace collapsed: what may differ between two copies of one defect.</summary>
 		internal static string Normal(string text) => SpaceRegex.Replace(DigitsRegex.Replace(text.Trim(), "#"), " ");
 
-		/// <summary>The types matched across pages: content quality, read from logs 10 and 22.</summary>
+		/// <summary>
+		/// The types matched across pages: content quality, read from logs 10 and 22. A comment shown
+		/// as text stays on its page: whether a note on several pages is the template's or each page's
+		/// own cannot be told, and a page item is right either way (a template fix clears them all).
+		/// </summary>
 		private static bool Takes(TriageItem item) =>
 			item.Keys.Count == 1
-			&& item.Type is not ("ADJACENT_ANCHOR" or BrokenLinkSource.Type or SpellingSource.Type or SelfLinkSource.Type)
+			&& item.Type is not ("ADJACENT_ANCHOR" or BrokenLinkSource.Type or SpellingSource.Type or SelfLinkSource.Type or Quality.CommentAsText.IssueType or Quality.DuplicateAttributes.IssueType)
 			&& !CanonicalSource.IsCanonical(item.Type)
 			&& !ForwardingLinkSource.IsForwarding(item.Type)
 			&& !IsShared(item.Page);

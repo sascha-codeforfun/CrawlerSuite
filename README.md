@@ -254,7 +254,7 @@ what an editor can fix in the page's own text — quote errors (unmatched, wrong
 closer), ligatures, word collisions, a space at a hyphen, split by formatting, both anchor
 types, language mismatch, your patterns, and the direction marks, joiners and other
 invisible characters — and the template defects that arrive grouped, embedded BOM and
-styled headings (one entry per pattern). Ride-along: what no reader sees or what the
+styled headings (one entry per pattern), and duplicate attributes. Ride-along: what no reader sees or what the
 template makes — mixed quote kinds and systems, control characters, decomposed text, mixed
 normalisation, both line-break glues, bare text, the three accessibility types, malformed
 HTML, content before doctype, paste debris and invisible control characters. So typos and visible text
@@ -266,7 +266,11 @@ text), so off takes every soft hyphen out of triage; Results still lists them.
 
 On a page, every defect gets a verdict — **Ticket**, **Wontfix** (this page only,
 with an optional comment behind "Add a comment") or **Locale** where it applies — saved
-as you click. Once all
+as you click. **← Previous page** and **Next page →** step through the pages in list
+order — the rows the chips let through, filed ones included — going round at the ends; between
+them, **Page 3 of 5** says where the open page stands in that list. **← All pages** returns the
+list to the row the walk started from; after a walk, **Back to the walk · Page 7 of 12** above the
+list reopens the page you left. Once all
 are in, **Ticket** files the page. Ticket numbers are typed in by hand once the
 tickets exist upstream; when a filed page gets new defects it reopens, and filing
 again offers to add them to the existing ticket or open a new one, listing what
@@ -304,9 +308,10 @@ Results. The key is the finding and the image, so a verdict holds when the pages
 
 **Search appearance** (log 08): pages that may appear in search — no noindex in the page or by
 header, no canonical naming another page — get page items for what their editor fixes in the
-page's settings. All ride along by default: search appearance is where an operator goes deeper
+page's settings. They ride along by default: search appearance is where an operator goes deeper
 once a page is open for something else — on, it lists a large share of a site at once; switch them
-on for an SEO pass. The items: title missing, title not following the site's title pattern,
+on for an SEO pass. The two cut-off estimates (title, description) are off by default: they hit
+nearly every page of most sites and stay listed in Results. The items: title missing, title not following the site's title pattern,
 description missing, meta keywords present, title or description likely cut off in a result —
 estimated from letter widths, as search engines cut by width in pixels — and the same title or
 description as other pages, each page's item naming the others. Where the other page also has the same description and main heading, it is
@@ -333,7 +338,20 @@ Canonical issues bring a chain (the canonical names a page with its own canonica
 canonical tags on one page, a canonical naming an address that redirects (log 03), and a canonical
 naming a page kept out of search (noindex) while the page itself is not. A canonical whose target was not found is left to Broken links
 (reach "Error elsewhere on site"), so it is decided once; a canonical to another host stays in
-Results only, as log 16 marks it. A snapshot without log 09 or 16 keeps their verdicts.
+Results only, as log 16 marks it. A snapshot without log 09 or 16 keeps their verdicts. The
+canonical issues of a page kept out of search by noindex are left out of triage — no search engine
+reads that canonical — unless **Canonical issues of noindex pages** (Settings › SEO & links) is
+on; Results keeps them, and their verdicts are kept for when the setting is switched on.
+
+**In search / Not in search**: every page in the list and the open page carry a pill saying
+whether the page may appear in search (log 08: no noindex, and a canonical naming the page
+itself), with the reason in its tooltip. An address that redirects is not in search (log 03; the
+target is in the tooltip), a PDF is judged by its saved X-Robots-Tag header, and a page the
+snapshot tells nothing about shows **Search unknown**. Stylesheets, scripts and shared entries
+get no pill. All three pills have the same width. The chips In search · Not in search filter the list, and
+pages in search are listed first after security and bidi: a defect a search visitor can land on
+is fixed first. The app does not know whether a search engine has indexed a page; it says what the
+snapshot shows.
 
 **Forwarding links** (log 40) are links to the site's own server that hand it a full address in
 their query (`…?next=https://…`, URL-encoded or not): the server is to forward the visitor there,
@@ -373,7 +391,12 @@ to spelling too (a word in another language on purpose), and the item shows the 
 dictionaries that know the word. Its excerpts show the text as a visitor reads it, a field name such as
 "<FloeId>" included, though the check itself leaves such names out. An occurrence outside the page
 text says where it stands — "Description: …", "alt of <img>: …", "In the page's script: …" (with
-escapes such as \u00e4 decoded) — in the ticket's language, so an editor can find it. Some words can only be judged in their sentence — a company's
+escapes such as \u00e4 decoded) — in the ticket's language, so an editor can find it. Where the
+saved page shows the word, triage and the ticket show the page's own markup instead, the word
+marked: the element's start tag for an attribute or a meta field (`<div class="…" title="word">`),
+the markup around the word for page text (`<p>The <b>word</b> is …</p>`). Long values are
+shortened, one element holding the word in several attributes is one line, and a word the saved
+page does not show (split by formatting, or the page changed) keeps its plain line. Some words can only be judged in their sentence — a company's
 registered name, a term of the page's subject — so a spelling item also has **User** and **Site**:
 the same choice as on Spell findings, through the same code (the same backup, the same one-time
 question before the shared user dictionary). The word is then right everywhere: every page's item
@@ -630,6 +653,10 @@ checkers don't:
   no added cost. That includes inline elements: `<span lang="en">` (or an `a`, `em`, …) in a
   German paragraph is a run of its own, checked in English; a `lang` repeating the surrounding
   language changes nothing.
+- **Hashtags** — a word glued to a `#` (`#Teatime`, at the start of a text, after a space or an
+  opening bracket or quote) passes when the dictionary knows it in another case: hashtags are
+  written in any case. Only a `#` directly before the word counts — `# Teatime` and `C#` are
+  checked as usual.
 
 Dictionaries are Hunspell `.dic`/`.aff` files. They are **operator-supplied** (none
 ship with the app); on a fresh install the app points you at where to put them and
@@ -760,9 +787,27 @@ surrounding context. What it looks for:
 - **Configured "unwanted" patterns** — your own list of strings/patterns that
   shouldn't appear in the raw HTML.
 - **Malformed HTML** — content before the doctype, and HTML parse errors.
+- **Duplicate attribute** — an attribute written twice or more in one tag
+  (`rel="noopener noreferrer" rel="noopener"`). HTML allows each attribute once; with different
+  values one of them is lost, and which copy a browser or tool goes by is not assumed. The
+  finding lists the values in the order written ("first …, then …"), or says the value is the
+  same each time. Several tags on a page with the same
+  doubling are one item, counted. Read from the pruned page, so the site's chrome is reported on
+  its group's reference pages. Each page keeps its own item, never merged into a shared entry.
+- **Comment shown as text** — a note meant as an HTML comment that the page shows, because its
+  opener is not `<!--`: the `!` left out (`<-- note -->`), a space after `<`, or the comment
+  written with `&lt;`. Reported only with an opener and a closer in the same visible text, never
+  in code samples; the finding names what is wrong. Its words are not reported again as
+  misspellings. Each page keeps its own item, never merged into a shared entry: whether a note
+  on several pages is the template's or each page's own cannot be told. (`<!` before anything else opens a bogus comment the browser hides: no finding.)
 - **CMS template authoring defects** — structural mistakes that come from the
   template, not the content, including unbalanced `{{ }}` binding fences.
 - **Language mismatch** — a page whose declared language doesn't match its text.
+
+Real HTML comments (`<!-- … -->`) are not spell-checked unless **Spell-check HTML comments**
+(Settings › Spelling) is on. Off by default, as comments are often in another language or
+shorthand; on, each comment is checked on its own in the page's language, conditional and
+code-shaped comments are left out, and a finding reads "In an HTML comment: …".
 
 #### Space at a hyphen
 
@@ -785,6 +830,10 @@ word ("Stadt- Landhaus" — "Stadthaus"), the finding says "/ or a joining word 
 "Stadt-/Landhaus", "Stadt- und Landhaus", "Stadt- oder Landhaus"); the same for a tail
 ("Hauseingänge -ausgänge" — "Hausausgänge"). A number before the hyphen is a stray space. A slash
 at a suspended head or tail takes no spaces ("Stadt- / Landhaus" is reported: "Stadt-/Landhaus").
+A site whose house style puts one space on each side of the slash switches on **Spaces around a
+slash at a hyphen are fine** (Content quality › Checks, off by default): then "Stadt- / Landhaus"
+and "Hauseingänge / -ausgänge" pass, while a space on one side only ("Stadt- /Landhaus",
+"Stadt-/ Landhaus") is still reported.
 Without a dictionary for the language the finding names both fixes. The excerpt is the page's
 HTML around the spot — the block it stands in, with its markup (letters the source writes as
 entities, "&uuml;", are matched too).
@@ -885,6 +934,18 @@ line. A file with comments still loads;
 the comments go when the app first saves it, after a numbered backup (`…json.1`). The backup
 holds no proxy credentials: who signs in to the proxy is never configuration.
 
+**Several configurations.** Next to `crawlersuite.config.json` you can keep others named
+`name.crawlersuite.config.json` — `kettles.crawlersuite.config.json`,
+`teapots.crawlersuite.config.json`. With more than one there, **Reload configuration** (Run
+page) offers them all, one button each by short name, the one in use outlined; a click loads
+it, **Cancel** closes the offer. With only one there, Reload reads it again as before. The
+picked file is the configuration from then on: the run reads it and Settings saves to it, so
+nothing is copied or renamed. The app starts with `crawlersuite.config.json` as before and does
+not remember the last pick. Settings shows the loaded configuration's name large at the top,
+its path below. With unsaved changes in Settings, another configuration is not loaded until
+they are saved or discarded. The dictionaries folder is the same for every configuration; each one names
+the files it uses there.
+
 The **Settings** page (the gear in the header) edits the file. Its tabs (Sites, Crawl, Network, CMS, Spelling,
 Dictionaries, Content quality, SEO & links, Assets, Triage, Comparison, Debug) list each setting in plain words,
 with its key and an explanation. A closed lock means the built-in default applies and the
@@ -950,8 +1011,9 @@ ticket, and Triage warns when they are left out. A site that does not use the CM
 list switches it off on its card; then it needs no tenant or production group.
 
 Whether a page is out of search is fixed, not a setting: `noindex` or `none` in its
-robots meta tag or in the `X-Robots-Tag` response header (header directives aimed at one
-crawler aside). Such pages stay out of the sitemap.
+robots meta tags or in the `X-Robots-Tag` response header (header directives aimed at one
+crawler aside). Several robots tags count together, the most restrictive winning, as search
+engines read them. Such pages stay out of the sitemap.
 
 ### Sites, locking and proxy sign-in
 

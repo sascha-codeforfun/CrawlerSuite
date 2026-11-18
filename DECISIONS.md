@@ -8,20 +8,20 @@ it does. Generic by rule: no site data, names, addresses or figures from real ru
 
 ## Keeping the app generic
 
-- Nothing from the sites the app is run on goes into code, comments, tests, fixtures or docs:
-  no words, class names, addresses, CMS values or real figures. Fixtures are invented
-  (`site.test`, water / ice / vapour).
-- No behaviour tuned to one site's quirks. A rule prompted by something seen on a site is stated
+- **No site data in the app.** Nothing from the sites the app is run on goes into code, comments,
+  tests, fixtures or docs: no words, class names, addresses, CMS values or real figures. Fixtures
+  are invented (`site.test`, water / ice / vapour).
+- **No behaviour tuned to one site's quirks.** A rule prompted by something seen on a site is stated
   as a general rule that would hold for any site.
-- What only a site can know is configuration, never code: which CMS column says a page is online
+- **What only a site can know is configuration, never code:** which CMS column says a page is online
   and with which value, the patterns a site prints into its PDFs, the text a site adds to every
   title, the classes it uses for headings.
 
 ## Stack and dependencies
 
-- WPF, C#, .NET 10, one self-contained file with native libraries included; dark theme
-  throughout, title bar included.
-- Only two packages: HtmlAgilityPack and WeCantSpell.Hunspell. WeCantSpell is never modified.
+- **WPF on .NET 10, one file.** WPF, C#, .NET 10, one self-contained file with native libraries
+  included; dark theme throughout, title bar included.
+- **Only two packages:** HtmlAgilityPack and WeCantSpell.Hunspell. WeCantSpell is never modified.
   Anything else is weighed before it is added.
 - **No browser engine.** A rendered preview of changed page parts in the Comparison would need
   one. WPF's built-in `WebBrowser` is Internet Explorer 11 and renders current layouts (flexbox,
@@ -30,6 +30,22 @@ it does. Generic by rule: no site data, names, addresses or figures from real ru
   the single file, and a lasting duty to follow its security updates and keep its sandboxing and
   request blocking right. Not to be reopened without weighing that burden first. The Comparison
   shows changes as marked text, embedded pictures and simple SVG drawings instead.
+
+## Configurations
+
+- **Several configurations sit side by side and are picked at Reload.** One configuration per
+  site setup (a large site, the test corpus) as `name.crawlersuite.config.json` next to the
+  program; Reload offers them when there is more than one. The picked file is used in place —
+  read and saved to — so switching never copies, renames or deletes: edits always land in the
+  file they belong to. Nothing remembers the pick; the app starts with crawlersuite.config.json,
+  so the folder stays portable and holds no state beyond the files. No file dialog: only the
+  program folder is offered.
+- **Settings names the configuration it edits, large.** Switching makes editing the wrong one
+  easy, so the short name stands at the top of Settings in the accent colour, the path below.
+  Unsaved Settings changes block loading another configuration rather than following it.
+- **The dictionaries folder is shared.** Every configuration reads the same folder; which files
+  it uses there is its own setting. A word added to a file two configurations use counts for
+  both, and a corpus run moves with such an edit — the baseline comparison shows it.
 
 ## Network and security
 
@@ -205,6 +221,59 @@ it does. Generic by rule: no site data, names, addresses or figures from real ru
 - **A word finds its pages in triage.** The search box also matches flagged words, whole and
   ignoring case (a part would bring up every address containing it). Copy for AI says that a
   search is active, never what was searched for: it may be a word from the page.
+- **Another flavour of the page language is its own run.** A span in en-US inside en-GB text is
+  checked against the en-US dictionary; a span naming only the language ("de-DE" inside "de") names
+  no other dictionary and still glues to its neighbours, so a word split by formatting stays whole.
+  Language tags are read normalised everywhere (case, "_" for "-") before they are cut to the
+  language.
+- **An apostrophe that opens a word is closed and hardcoded for the spell check** ("’tis",
+  "’twas"), as the German reduced articles are: a suppression must never hide a typo, so config
+  cannot widen it. The quote check's elision lists are config and may be broad.
+- **A comment the page shows is a finding of its own.** The spell check found the words of
+  "<-- note -->" without being able to say why: the opener lacks its "!", so browsers show the
+  note as text. COMMENT_AS_TEXT names that, and the words inside are muted in spelling — the
+  pattern of word collisions and split anchors: spelling is the tripwire, the dedicated finding
+  says what it is. Only an opener and a closer together count (an arrow "<--" alone is prose), only
+  in visible text and never in code samples. "<!" before anything but "--" opens a bogus comment
+  the browser hides, so it is no finding: the check reads only what the parser kept as text.
+- **A duplicate attribute is a finding of its own, on its page, and assumes nothing about which
+  copy counts.** HTML allows each attribute once. The parsing rules say the first copy wins, but a
+  browser may patch that when a large site breaks, and other tools read whichever they like, so the
+  finding lists the values in the order written ("first …, then …") or says the value is the same
+  each time. One finding, On in triage, for both kinds: different values (one is lost) and the same
+  value (only invalid); no separate switch for the second. Decided after the first real site, where
+  the duplicates were manual debris on individual pages: each page is its own fix, so the item
+  stays on its page and is never gathered into a shared entry, and the lasting fix is an editor
+  that rejects or merges a doubled attribute on save. Read from the pruned page, as the content
+  checks are. The other checks keep reading attributes as they do: removing the duplicate is the
+  fix, so which copy they see is not worked around.
+- **A comment shown as text stays on its page.** Whether a note on several pages is the template's
+  or each page's own cannot be told from outside, so it is never gathered into a shared entry: a
+  page item is right either way, and a template fix clears them all at the next crawl. Nor does an
+  item name the other pages with the same note — with a template note on every page, every item
+  would carry a list of thousands.
+- **Real comments are spell-checked only on request.** Off by default — comments are often in
+  another language or shorthand and would flood the list — but a typo in one can still embarrass
+  whoever reads the source. On, each comment is its own run, conditional and code-shaped ones are
+  left out, and the finding says it stands in an HTML comment.
+- **A hashtag is checked in any case, and only when glued.** "#Teatime" is written as the
+  author likes, so a word right after "#" passes when the dictionary knows it lowercased or
+  capitalised; the "#" must touch the word and itself stand at the start, after a space or an
+  opening bracket or quote. "# Teatime" is a heading marker or a number sign, "C#" a name: both
+  are checked as usual. A misspelt hashtag is still reported.
+- **Look-alike hyphens in script strings are read before tokenizing.** The tokenizer splits words
+  at most dash-like characters, so a corrupted "margin－left" never formed an unknown word. Changing
+  the tokenizer would move every spelling finding; a pre-scan of script strings moves none. It
+  counts only a lowercase identifier followed by ":" (a CSS declaration or an object key) outside a
+  nested quoted value: prose in a script string ("soon—later", "E‑Mail") and values such as
+  content:"a—b" stay silent. Better a corruption missed than prose reported as code. The spell
+  check's own findings are written first and unchanged; the pre-scan only adds what it did not
+  report, with the same excerpt, so a look-alike found before reads exactly as before.
+- **A spaced slash at a suspended hyphen is reported, unless the house style says otherwise.**
+  Duden writes the slash between single words without spaces ("Stadt-/Landhaus"), and spaces
+  let the browser break the line at the slash. Some sites write "Stadt- / Landhaus" on purpose,
+  so an opt-in switch accepts one space on each side. A space on one side only looks broken in
+  any house style and is reported either way.
 
 ## Quotes
 
@@ -261,6 +330,24 @@ it does. Generic by rule: no site data, names, addresses or figures from real ru
   fixes in a page, a stylesheet or a shared component.
 - **A finding is decided once.** A canonical whose target was not found belongs to Broken links;
   the canonical source leaves it out.
+- **Search findings follow the search status.** A page kept out of search by noindex gets no
+  search-appearance items and, unless Settings › SEO & links › Canonical issues of noindex pages is
+  on, no canonical items: no search engine reads either. Logs and Results keep everything; the
+  verdicts of left-out canonical items are kept, so switching the setting on brings them back. A
+  page whose canonical names another keeps its canonical items: that canonical is what is in
+  question. Several robots tags count together; the most restrictive wins, as for search engines.
+- **"In search" is a pill, a filter and an order.** Whether a search visitor can land on a page
+  decides how urgent its defects are, so the status (log 08) stands beside the address in the list
+  and on the page, has its own chips, and lists pages in search first after security and bidi. "In
+  search" means "may appear, as far as the snapshot can tell" — the app never claims a page is
+  indexed. The reason (noindex in the page, by header, canonical elsewhere) is in the tooltip. The
+  status comes from the first source that knows it: log 08 for pages, log 03 for an address that
+  redirects (not in search — a search engine indexes where it leads; the target in the tooltip),
+  the saved X-Robots-Tag header for a PDF. A page none of them knows shows "Search unknown" rather
+  than a gap that looks like a missing pill; stylesheets, scripts and shared entries are no pages
+  and get none. All search pills have one width, so the addresses after them line up.
+- **Cut-off estimates are off by default.** Title and description widths are estimates and hit
+  nearly every page of most sites; listed in Results, they are switched on for an SEO pass.
 - **Images:** metadata is a defect only when it is personal or reveals a location (GPS, a camera
   serial, a person's name) — the editing program and copyright are information, often deliberate.
   Size counts only for an image a page shows (img, srcset, a stylesheet background), not for one
@@ -320,12 +407,30 @@ it does. Generic by rule: no site data, names, addresses or figures from real ru
   undecided ride along: they reach a ticket with their page, not a page of their own.
 - **What triage counts is a setting, not a session choice:** one set for every site, in
   Settings → Triage; Triage shows it and links there. A site that needs other rules gets its
-  own copy of the app with its own configuration — per-site switches would multiply settings.
+  own configuration, picked at Reload — per-site switches inside one would multiply settings.
   Shared entries are listed only when their switch is on; template defects that arrive grouped
   (embedded BOM, styled headings) are on by default.
+- **Previous and next walk the list on screen.** The rows the chips let through, in their order,
+  filed ones included: walking is for looking too, and the count ("Page 3 of 5") then matches the
+  row you see. The walk changes only when the list does (Update list, a chip), never because a
+  page was decided or filed. At either end it goes round; a page opened from elsewhere shows
+  "Not in the list" and Next starts at the first row.
+- **Leaving a walk returns to where it started, and offers the way back.** "All pages" brings the
+  list back at the row the walk began from, as it was left; after a walk, "Back to the walk ·
+  Page 7 of 12" reopens the page it was left at. One plain click to leave, the resume only when
+  there is something to resume. Clicking a row starts a new walk and drops the offer; so does the
+  page leaving the list. Nothing of it is remembered beyond the session.
 
 ## Cards and tickets
 
+- **A spelling finding shows the page's own markup.** The spell check's logs name a place
+  ("title of <div>"); triage and the ticket read the saved page back and show the element as it
+  stands — the start tag for an attribute, the markup around the word for text — with the word
+  marked. The plain excerpt stays underneath: the ticket sweep checks it against the page and the
+  search reads it. Where the saved page does not show the word (split by markup, changed, missing),
+  the plain line stands: never a wrong spot. The spell check lists "image" in a sentence under the
+  finding for "Image", so the word is looked up and marked as flagged first, and in any case only
+  where a line or element does not have it as flagged.
 - **Card wording.** A card names WCAG only where a success criterion applies; it does not keep
   saying where it does not. Each card starts with what the finding is about (Typography, Markup,
   Search engines, Images, Privacy …).

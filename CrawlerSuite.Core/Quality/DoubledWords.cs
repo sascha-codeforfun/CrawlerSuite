@@ -59,7 +59,7 @@ namespace CrawlerSuite.Core.Quality
 			string filename, string text, string source, IReadOnlyList<string> languages, ContentQualityConfig config)
 		{
 			var exceptions = Exceptions(config, languages);
-			bool german = languages.Any(l => string.Equals(l.Split('-')[0], "de", StringComparison.OrdinalIgnoreCase));
+			bool german = languages.Any(l => CrawlerSuite.Core.Lexicon.LanguageTags.BaseOf(l) == "de");
 			var words = Words(text);
 			for (int i = 1; i < words.Count; i++)
 			{
@@ -97,10 +97,10 @@ namespace CrawlerSuite.Core.Quality
 			var set = new HashSet<string>(StringComparer.Ordinal);
 			foreach (var language in languages)
 			{
-				var code = language.Split('-')[0];
+				var code = CrawlerSuite.Core.Lexicon.LanguageTags.BaseOf(language);
 				foreach (var (key, words) in config.DoubledWordExceptions ?? [])
 				{
-					if (string.Equals(key.Split('-')[0], code, StringComparison.OrdinalIgnoreCase))
+					if (string.Equals(CrawlerSuite.Core.Lexicon.LanguageTags.BaseOf(key), code, StringComparison.Ordinal))
 					{
 						foreach (var word in words ?? [])
 						{

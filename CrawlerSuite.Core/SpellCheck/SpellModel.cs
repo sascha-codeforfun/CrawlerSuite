@@ -25,7 +25,14 @@ namespace CrawlerSuite.Core.SpellCheck
 		/// excerpt context cannot be re-derived from the DOM node (the node holds the raw,
 		/// undecoded body), so a Script finding carries its own excerpt text on the finding.
 		/// </summary>
-		Script
+		Script,
+
+		/// <summary>
+		/// The text of an HTML comment (labelled "#comment"), checked only when
+		/// SpellCheckEngine.CheckHtmlComments is on. Not part of the page's visible text, so a Comment
+		/// finding, like a Script one, carries its own excerpt text.
+		/// </summary>
+		Comment,
 	}
 
 	/// <summary>

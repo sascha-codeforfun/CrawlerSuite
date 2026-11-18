@@ -30,6 +30,32 @@ namespace CrawlerSuite.Core.Tests.Html
 			Assert.Equal("de", Language.FromMeta(doc, "xx"));
 		}
 
+		[Theory]
+		[InlineData("EN_gb")]
+		[InlineData("en_GB")]
+		[InlineData("EN")]
+		public void FromMeta_HtmlLangInAnyCaseOrWithUnderscore_IsRead(string lang)
+		{
+			var doc = LoadHtml("<html lang=\"" + lang + "\"></html>");
+			Assert.Equal("en", Language.FromMeta(doc, "xx"));
+		}
+
+		[Fact]
+		public void FromMeta_MetaCodeInCapitals_IsRead()
+		{
+			var doc = LoadHtml("<html><head><meta name=\"language\" content=\"DE\"></head></html>");
+			Assert.Equal("de", Language.FromMeta(doc, "xx"));
+		}
+
+		[Fact]
+		public void NearestElementLanguage_UnderscoreTag_IsRead()
+		{
+			var doc = LoadHtml("<html lang=\"de\"><body><p lang=\"EN_us\"><b id=\"t\">x</b></p></body></html>");
+			var node = doc.GetElementbyId("t");
+			Assert.Equal("en", Language.NearestElementLanguage(node, "de"));
+			Assert.Equal("en-us", Language.NearestElementTag(node, "de"));
+		}
+
 		[Fact]
 		public void FromMeta_HtmlLangRegional_NormalizesToBaseCode()
 		{

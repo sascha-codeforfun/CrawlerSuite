@@ -105,7 +105,20 @@ public sealed class SettingsModel : Observable
 		? $"No site contains \u201C{siteQuery}\u201D."
 		: string.Empty;
 
-	public string FilePath { get => path; private set => Set(ref path, value); }
+	public string FilePath
+	{
+		get => path;
+		private set
+		{
+			if (Set(ref path, value))
+			{
+				Raise(nameof(ConfigName));
+			}
+		}
+	}
+
+	/// <summary>The configuration's short name, shown large at the top: "kettles", "crawlersuite".</summary>
+	public string ConfigName => string.IsNullOrEmpty(path) ? "Settings" : CrawlerSuite.Core.AppPaths.ConfigName(path);
 
 	/// <summary>Unlocked for this session after the warning.</summary>
 	public bool IsUnlocked

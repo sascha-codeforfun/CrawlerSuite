@@ -64,7 +64,8 @@ namespace CrawlerSuite.Core.SpellCheck
 			KnownPartTally? knownParts = null,
 			CrawlerSuite.Core.Quality.ProperNames? properNames = null,
 			Func<string, string?>? languageKey = null,
-			Action<Action>? deferSuggestions = null)
+			Action<Action>? deferSuggestions = null,
+			CrawlerSuite.Core.Suppressions.CommentAsTextSpellSuppression? commentAsText = null)
 		{
 			var resolver = new BoilerplateResolver(engineConfig.BoilerplateGroups);
 
@@ -269,8 +270,8 @@ namespace CrawlerSuite.Core.SpellCheck
 					// pipeline on the finding.
 					var scriptSkipScope = scriptSkips?.For(file.Filename);
 					var pairs = DomTraverser
-						.Traverse(doc, matcher, isReferencePage, skipAttributeNames, engineConfig.SpellCheckJavaScript.Enabled, metaContentNames, globalIgnore, htmlTagsToIgnore)
-						.SelectMany(run => RunChecker.Check(run, RunLanguagesFor(run), checker.Check, knownDefects, engineConfig.HeuristicNonProseDataAttributeSuppression, wordCollisions?.WordsForFile(file.Filename), scriptTokensToFilter, scriptFallbackLanguages, anchorSplitTails: anchorSplit?.ForFile(file.Filename), unwantedPatternWords: unwantedPattern?.WordsForFile(file.Filename), adjacentAnchorJoins: adjacentAnchor?.ForFile(file.Filename), scriptSkips: scriptSkipScope)
+						.Traverse(doc, matcher, isReferencePage, skipAttributeNames, engineConfig.SpellCheckJavaScript.Enabled, metaContentNames, globalIgnore, htmlTagsToIgnore, engineConfig.CheckHtmlComments)
+						.SelectMany(run => RunChecker.Check(run, RunLanguagesFor(run), checker.Check, knownDefects, engineConfig.HeuristicNonProseDataAttributeSuppression, CrawlerSuite.Core.Suppressions.CommentAsTextSpellSuppression.Union(wordCollisions?.WordsForFile(file.Filename), commentAsText?.WordsForFile(file.Filename)), scriptTokensToFilter, scriptFallbackLanguages, anchorSplitTails: anchorSplit?.ForFile(file.Filename), unwantedPatternWords: unwantedPattern?.WordsForFile(file.Filename), adjacentAnchorJoins: adjacentAnchor?.ForFile(file.Filename), scriptSkips: scriptSkipScope)
 							.Select(finding => (run, finding)))
 						.ToList();
 

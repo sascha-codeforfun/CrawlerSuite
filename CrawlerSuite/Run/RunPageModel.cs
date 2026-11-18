@@ -138,6 +138,40 @@ public sealed class RunPageModel : Observable
 		}
 	}
 
+	// ── Configurations offered at Reload ───────────────────────────────────────
+
+	/// <summary>The configurations next to the program, offered when Reload finds more than one.</summary>
+	public ObservableCollection<ConfigChoice> ConfigChoices { get; } = [];
+
+	private string configChoiceNote = string.Empty;
+
+	/// <summary>Why a pick was not loaded (unsaved settings); empty when nothing is in the way.</summary>
+	public string ConfigChoiceNote { get => configChoiceNote; set => Set(ref configChoiceNote, value); }
+
+	public bool ShowsConfigChoices => ConfigChoices.Count > 0;
+
+	/// <summary>Offers <paramref name="files"/>, the one in use marked.</summary>
+	public void OfferConfigs(IEnumerable<string> files, string loaded)
+	{
+		ConfigChoices.Clear();
+		foreach (var file in files)
+		{
+			ConfigChoices.Add(new ConfigChoice(AppPaths.ConfigName(file), file,
+				string.Equals(Path.GetFullPath(file), Path.GetFullPath(loaded), StringComparison.OrdinalIgnoreCase)));
+		}
+
+		ConfigChoiceNote = string.Empty;
+		Raise(nameof(ShowsConfigChoices));
+	}
+
+	/// <summary>Takes the offer away again.</summary>
+	public void CloseConfigChoices()
+	{
+		ConfigChoices.Clear();
+		ConfigChoiceNote = string.Empty;
+		Raise(nameof(ShowsConfigChoices));
+	}
+
 	/// <summary>"Re-run latest": a replay of the latest snapshot without any question.</summary>
 	public bool CanQuickRun => CanStart && hasLatestSnapshot;
 
@@ -233,4 +267,10 @@ public sealed class RunPageModel : Observable
 	/// <summary>Turns a load failure into a problem card.</summary>
 	public static ConfigCheckItem FromLoad(ConfigLoadResult load) =>
 		new(Path.GetFileName(load.ConfigPath), load.ErrorBlocks);
+}
+
+/// <summary>A configuration offered at Reload: its short name, its file, and whether it is the one in use.</summary>
+public sealed record ConfigChoice(string Name, string Path, bool IsLoaded)
+{
+	public string ToolTip => IsLoaded ? $"In use: {System.IO.Path.GetFileName(Path)}. Click to read it again." : $"Load {System.IO.Path.GetFileName(Path)}";
 }

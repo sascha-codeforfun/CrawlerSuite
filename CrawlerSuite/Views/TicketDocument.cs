@@ -571,7 +571,8 @@ internal static class TicketDocument
 
 			word.Inlines.Add(new DocRun(text(SpelledLanguages.Replace(item.Detail, string.Empty))) { FontWeight = FontWeights.SemiBold });
 			section.Blocks.Add(word);
-			section.Blocks.Add(Context(item.Type, item.Item.ContextIn(language), item.Detail, text));
+			// The page's own markup where the saved page shows the word, else the plain excerpt.
+			section.Blocks.Add(Context(item.Type, item.Item.ShownIn(language), item.Detail, text));
 			yield return section;
 		}
 	}

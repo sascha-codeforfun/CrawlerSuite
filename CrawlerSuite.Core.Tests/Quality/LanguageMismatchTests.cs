@@ -31,6 +31,14 @@ namespace CrawlerSuite.Core.Tests.Quality
 		}
 
 		[Fact]
+		public void Check_UnderscoreAndCase_MatchingBaseCode_ReturnsEmpty()
+		{
+			// EN_gb is en-GB written otherwise: its language is en, as the meta says.
+			var doc = Doc("<html lang=\"EN_gb\"><head><meta name=\"language\" content=\"en\"></head></html>");
+			Assert.Empty(LanguageMismatch.Check("f.html", doc));
+		}
+
+		[Fact]
 		public void Check_SubcodeNormalised_MatchingBaseCode_ReturnsEmpty()
 		{
 			// de-DE vs de should not trigger — both normalise to "de"

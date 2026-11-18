@@ -118,7 +118,9 @@ namespace CrawlerSuite.Core.Findings
 				("ARIA_REFERENCE_BROKEN", "Broken ARIA references")]),
 			("Markup", "", [
 				("MALFORMED_HTML", "Malformed HTML"),
-				("CONTENT_BEFORE_DOCTYPE", "Content before doctype")]),
+				("CONTENT_BEFORE_DOCTYPE", "Content before doctype"),
+				("COMMENT_AS_TEXT", "Comment shown as text"),
+				("DUPLICATE_ATTRIBUTE", "Duplicate attribute")]),
 			("Language", "", [
 				("LANGUAGE_MISMATCH", "Language mismatch")]),
 			("Your patterns", "", [
@@ -397,7 +399,8 @@ namespace CrawlerSuite.Core.Findings
 			"Search engines. Problems with a page's canonical tag: a target that was not found (also listed under " +
 			"Broken links, where triage decides it), a target that redirects, a target kept out of search (noindex) while the " +
 			"page is not, a chain (the canonical names a page with a canonical of its own), several canonical tags on one page, " +
-			"or a target on another host (listed here, not triaged).",
+			"or a target on another host (listed here, not triaged). Triage leaves out the issues of pages kept out of search " +
+			"(noindex) unless Settings › SEO & links › Canonical issues of noindex pages is on.",
 			CanonicalLinks,
 			IsViolation: false);
 
@@ -476,7 +479,8 @@ namespace CrawlerSuite.Core.Findings
 				"Search engines. The title is likely cut off in a search result, which shows about " +
 				SearchSnippetLimits.Title + " pixels of it on a desktop. The width is estimated from the widths of the letters, " +
 				"so wide letters are cut sooner than narrow ones; a search engine may also rewrite a title. Fix: put what " +
-				"matters first and shorten the title in the page's settings — the preview shows where it would be cut.",
+				"matters first and shorten the title in the page's settings — the preview shows where it would be cut. " +
+				"Off in triage by default (listed in Results): switch it on for an SEO pass.",
 				SeoLinks,
 				IsViolation: false),
 			[Triage.SeoSource.DescriptionMissing] = new(
@@ -496,7 +500,8 @@ namespace CrawlerSuite.Core.Findings
 				"Search engines. The description is likely cut off in a search result, which shows about " +
 				SearchSnippetLimits.Description + " pixels of it on a desktop. An estimate from the widths of the letters; a " +
 				"search engine may also show other text. Fix: put what matters first and shorten the description in the " +
-				"page's settings — the preview shows where it would be cut.",
+				"page's settings — the preview shows where it would be cut. Off in triage by default (listed in Results): " +
+				"switch it on for an SEO pass.",
 				SeoLinks,
 				IsViolation: false),
 			[Triage.SeoSource.Keywords] = new(
@@ -951,6 +956,20 @@ namespace CrawlerSuite.Core.Findings
 				[
 					("HTML: the DOCTYPE", "https://html.spec.whatwg.org/multipage/syntax.html#the-doctype"),
 					("DOM: quirks mode", "https://dom.spec.whatwg.org/#concept-document-quirks"),
+				],
+				IsViolation: false),
+
+			["DUPLICATE_ATTRIBUTE"] = new(
+				"Markup issue. An attribute is written twice or more in one tag, e.g. rel=\"noopener noreferrer\" rel=\"noopener\". HTML allows each attribute once. Which copy a browser, a screen reader or a search engine goes by is not something to rely on: the parsing rules say the first, but with different values one of them is lost either way — a class that never applies, an alt text or a link target nobody sees. The finding lists the values in the order they are written, or says the value is the same each time; with the same value nothing is lost, but the markup is still invalid. Several tags with the same doubling on a page are one item, counted. Likely cause: a link or an image edited by hand, or a component adding its own attribute on top of the editor's. Fix: keep the attribute once, with the value meant; an editor that rejects or merges a doubled attribute on save stops it coming back.",
+				[
+					("HTML: attributes", "https://html.spec.whatwg.org/multipage/syntax.html#attributes-2"),
+				],
+				IsViolation: true),
+
+			["COMMENT_AS_TEXT"] = new(
+				"Markup issue. A note meant as an HTML comment is shown on the page as text: its opener is not \"<!--\". A comment opens with exactly \"<!--\"; browsers read \"<\" as markup only before a letter, \"/\", \"!\" or \"?\", so \"<-- note -->\" (the \"!\" left out) and \"< !-- note -->\" (a space after \"<\") are ordinary text, and so is a comment written with entities (&lt;!--). (\"<!\" before anything else opens a hidden bogus comment: no finding.) Visitors see it, screen readers read it out, copy and paste and search engines take it. Reported only when an opener and a closer stand in the same visible text; code samples (pre, code) are left out. Its words are not reported again as misspellings. Likely cause: a note typed by hand or pasted through an editor, in the page's content or, when many pages carry the same note, in the template. Fix: write the opener as \"<!--\", or remove the note.",
+				[
+					("HTML: comments", "https://html.spec.whatwg.org/multipage/syntax.html#comments"),
 				],
 				IsViolation: false),
 

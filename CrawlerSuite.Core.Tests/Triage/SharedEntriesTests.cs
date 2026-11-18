@@ -40,6 +40,21 @@ namespace CrawlerSuite.Core.Tests.Triage
 		}
 
 		[Fact]
+		public void ACommentShownAsText_OnSeveralPages_StaysOnEachPage()
+		{
+			// Whether the note is the template's or each page's own cannot be told: one item per page.
+			const string detail = "Comment shown as text: \u201C<-- vapour note -->\u201D \u2014 the \u201C!\u201D is missing";
+			var items = SharedEntries.Apply(
+			[
+				Item("COMMENT_AS_TEXT", "https://site.test/water.html", detail, "text <-- vapour note --> more"),
+				Item("COMMENT_AS_TEXT", "https://site.test/ice.html", detail, "text <-- vapour note --> more"),
+			]);
+
+			Assert.Equal(2, items.Count);
+			Assert.All(items, i => Assert.False(i.IsShared));
+		}
+
+		[Fact]
 		public void APatternOnOnePageOnly_StaysWithThatPage()
 		{
 			var lone = Item(Heading, "https://site.test/water.html", "<span class=\"wave\">", "Rain box");

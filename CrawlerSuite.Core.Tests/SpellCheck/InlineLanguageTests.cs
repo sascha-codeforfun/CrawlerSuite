@@ -42,6 +42,25 @@ namespace CrawlerSuite.Core.Tests.SpellCheck
 		}
 
 		[Fact]
+		public void OtherFlavourOfTheSameLanguage_IsItsOwnRun_InThatFlavour()
+		{
+			// The surrounding page is one flavour, the span another: the span's words are checked in its own.
+			var runs = DomTraverser.Traverse(DomTraverser.Parse(Encoding.UTF8.GetBytes(
+					"<html lang=\"en-GB\"><body><p>The shade is sold abroad as <span lang=\"en-US\">qwolor</span> number five.</p></body></html>")))
+				.Where(r => r.Source == RunSource.TextNode && r.RawText.Trim().Length > 0)
+				.Select(r => (r.RawText.Trim(), Language.NearestElementTag(r.LanguageNode ?? r.Node, "en-gb")))
+				.ToList();
+			Assert.Equal([("The shade is sold abroad as", "en-gb"), ("qwolor", "en-us"), ("number five.", "en-gb")], runs);
+		}
+
+		[Fact]
+		public void SameTagWrittenOtherwise_ChangesNothing()
+		{
+			// "de_DE" and "de-de" are one tag once normalised: the span still glues.
+			Assert.Equal([("Ein Hausgarten.", "de")], Runs("<p lang=\"de-DE\">Ein Haus<span lang=\"DE_de\">garten</span>.</p>"));
+		}
+
+		[Fact]
 		public void SameLanguageInside_ChangesNothing()
 		{
 			Assert.Equal([("Ein Hausgarten.", "de")], Runs("<p lang=\"de\">Ein Haus<span lang=\"de-DE\">garten</span>.</p>"));

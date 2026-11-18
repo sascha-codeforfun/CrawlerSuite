@@ -17,9 +17,9 @@ namespace CrawlerSuite.Core.Quality
 				yield break;
 			}
 
-			// Normalise to base language code (de-DE → de).
-			var htmlCode = htmlLang.Split('-')[0].ToLowerInvariant();
-			var metaCode = metaLang.Split('-')[0].ToLowerInvariant();
+			// Normalise to base language code (de-DE → de; case and "_" first: EN_gb → en).
+			var htmlCode = CrawlerSuite.Core.Lexicon.LanguageTags.BaseOf(htmlLang);
+			var metaCode = CrawlerSuite.Core.Lexicon.LanguageTags.BaseOf(metaLang);
 
 			if (!htmlCode.Equals(metaCode, StringComparison.OrdinalIgnoreCase))
 			{

@@ -112,7 +112,7 @@ namespace CrawlerSuite.Core.Tests.Port
 					CrawlerSuite.Core.Links.BrokenLinkReach.Elsewhere, CrawlerSuite.Core.Links.BrokenLinkReach.Unknown }.Select(BrokenLinkSource.SwitchIdOf),
 				SelfLinkSource.Type, ForwardingLinkSource.External, ForwardingLinkSource.SameHost, CanonicalSource.Chain, CanonicalSource.Conflict, CanonicalSource.Redirect, CanonicalSource.Noindex,
 				ImageSource.Truncated, ImageSource.FileOversize, ImageSource.DimensionsOversize, ImageSource.LocationOrDevice,
-				"EMBEDDED_BOM_IN_BODY", "STYLED_HEADING",
+				"EMBEDDED_BOM_IN_BODY", "STYLED_HEADING", "COMMENT_AS_TEXT", "DUPLICATE_ATTRIBUTE",
 			];
 			string[] rideAlong =
 			[
@@ -124,7 +124,7 @@ namespace CrawlerSuite.Core.Tests.Port
 				"MALFORMED_HTML", "CONTENT_BEFORE_DOCTYPE", "PUNCTUATION_WEAK",
 				TriageSwitches.IdOf(FindingsCatalog.InvisibleCause.PasteDebris),
 				TriageSwitches.IdOf(FindingsCatalog.InvisibleCause.Controls),
-				.. SeoSource.Types.Select(t => t.Type), SeoSource.H1Missing, SeoSource.H1Several,
+				.. SeoSource.Types.Select(t => t.Type).Except([SeoSource.TitleCut, SeoSource.DescriptionCut]), SeoSource.H1Missing, SeoSource.H1Several,
 				.. new[] { CrawlerSuite.Core.Links.BrokenLinkReach.Script, CrawlerSuite.Core.Links.BrokenLinkReach.Undecided,
 					CrawlerSuite.Core.Links.BrokenLinkReach.Never }.Select(BrokenLinkSource.SwitchIdOf),
 			];
@@ -137,7 +137,9 @@ namespace CrawlerSuite.Core.Tests.Port
 			Assert.Equal(TriageMode.Off, modes[ImageSource.Tiny]);
 			Assert.Equal(TriageMode.Off, modes[ImageSource.People]);
 			Assert.Equal(TriageMode.Off, modes[SeoSource.H1Repeated]);
-			Assert.Equal(on.Length + rideAlong.Length + 6, modes.Count); // every switch has a stated default
+			Assert.Equal(TriageMode.Off, modes[SeoSource.TitleCut]);
+			Assert.Equal(TriageMode.Off, modes[SeoSource.DescriptionCut]);
+			Assert.Equal(on.Length + rideAlong.Length + 8, modes.Count); // every switch has a stated default
 		}
 
 		[Fact]

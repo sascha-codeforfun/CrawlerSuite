@@ -101,15 +101,13 @@ namespace CrawlerSuite.Core
 				var headText = encoding.GetString(headBytes);
 
 				// 3. Check <meta name="robots"> content for "noindex".
-				// Tolerate both attribute orders; first match wins.
-				var match = RobotsMetaNameFirst().Match(headText);
-				if (!match.Success)
-				{
-					match = RobotsMetaContentFirst().Match(headText);
-				}
+				// Tolerate both attribute orders. Every robots tag counts, as search engines take
+				// the most restrictive: "index" in one and "noindex" in another is out of search.
+				var content = string.Join(",", RobotsMetaNameFirst().Each(headText)
+					.Concat(RobotsMetaContentFirst().Each(headText))
+					.Select(m => m.Groups["content"].Value));
 
 				// Out of search (noindex or none, in the page or the X-Robots-Tag header) stays out.
-				var content = match.Success ? match.Groups["content"].Value : null;
 				if (SearchRobots.IsOutOfSearch(content))
 				{
 					Interlocked.Increment(ref noindexInPage);

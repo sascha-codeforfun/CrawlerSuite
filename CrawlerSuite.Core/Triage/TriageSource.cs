@@ -26,8 +26,14 @@ namespace CrawlerSuite.Core.Triage
 		Seo.SearchSnippet? Snippet = null,
 		string? Found = null,
 		string? DetailDe = null,
-		string? ContextDe = null)
+		string? ContextDe = null,
+		string? Markup = null,
+		string? MarkupDe = null)
 	{
+		// Markup, MarkupDe: a spelling finding as the page's own HTML (SpellingMarkup), shown in place
+		// of the context in triage and in the ticket; null where there is none. The context stays the
+		// plain excerpt: the ticket sweep and the search read that.
+
 		// Found: for a shared entry, what was found as the finding states it — its context before the
 		// page list was added (a styled heading's "as found" line); null for a page's own item.
 		// DetailDe, ContextDe: the detail and context in German where the app wrote them (a sentence of
@@ -40,6 +46,10 @@ namespace CrawlerSuite.Core.Triage
 		/// <summary>The context in a document language.</summary>
 		public string ContextIn(Text.DocumentLanguage language) =>
 			language == Text.DocumentLanguage.German && ContextDe is not null ? ContextDe : Context;
+
+		/// <summary>What triage and the ticket show of the context: the markup where there is one, else the context.</summary>
+		public string ShownIn(Text.DocumentLanguage language) =>
+			(language == Text.DocumentLanguage.German ? MarkupDe ?? Markup : Markup) ?? ContextIn(language);
 
 		/// <summary>An entry for one defect repeated on several pages (<see cref="SharedEntries"/>), not a page.</summary>
 		public bool IsShared => SharedEntries.IsShared(Page);
@@ -89,7 +99,11 @@ namespace CrawlerSuite.Core.Triage
 		/// dictionary holds by now, which are left out). Off the UI thread.
 		/// </summary>
 		/// <param name="titlePatterns">The site's title patterns (Seo.TitleTemplates), for the search-appearance items.</param>
-		public static IReadOnlyList<TriageItem> Read(string snapshotDirectory, Func<string, bool>? decidedWord = null, IReadOnlyList<string>? titlePatterns = null)
+		/// <param name="canonicalsOfNoindexPages">
+		/// Seo.TriageCanonicalsOfNoindexPages: false leaves out the canonical issues of pages kept out
+		/// of search by noindex (log 08), as the search-appearance items already are.
+		/// </param>
+		public static IReadOnlyList<TriageItem> Read(string snapshotDirectory, Func<string, bool>? decidedWord = null, IReadOnlyList<string>? titlePatterns = null, bool canonicalsOfNoindexPages = false)
 		{
 			var urlByFile = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 			var index = Path.Combine(snapshotDirectory, LogFileNames.CrawlerIndex);
@@ -143,7 +157,14 @@ namespace CrawlerSuite.Core.Triage
 
 			// Self-links (log 09) and canonical issues (log 16): page items like content quality.
 			items.AddRange(SelfLinkSource.Read(snapshotDirectory, LocalOfUrl));
-			items.AddRange(CanonicalSource.Read(snapshotDirectory, LocalOfUrl));
+			var canonicals = CanonicalSource.Read(snapshotDirectory, LocalOfUrl);
+			if (!canonicalsOfNoindexPages && canonicals.Count > 0)
+			{
+				var search = SeoSource.SearchByPage(snapshotDirectory);
+				canonicals = canonicals.Where(i => !SeoSource.IsNoindex(search.TryGetValue(i.Page, out var s) ? s : null)).ToList();
+			}
+
+			items.AddRange(canonicals);
 
 			// Forwarding links (log 40): a page's links that hand the server an address to forward to.
 			items.AddRange(ForwardingLinkSource.Read(snapshotDirectory, LocalOfUrl));
@@ -154,11 +175,43 @@ namespace CrawlerSuite.Core.Triage
 			// Images (log 25), placed by who uses them (log 38).
 			items.AddRange(ImageSource.Read(snapshotDirectory, LocalOfUrl));
 
+			// Each saved page is parsed once for the markup of its spelling findings, which log 12 lists
+			// page by page; only a few pages are held at a time.
+			var parsed = new Dictionary<string, SpellingMarkup.Page?>(StringComparer.OrdinalIgnoreCase);
+			SpellingMarkup.Page? PageOf(string? local)
+			{
+				if (local is null)
+				{
+					return null;
+				}
+
+				if (!parsed.TryGetValue(local, out var doc))
+				{
+					if (parsed.Count >= 8)
+					{
+						parsed.Clear();
+					}
+
+					doc = SpellingMarkup.Load(local);
+					parsed[local] = doc;
+				}
+
+				return doc;
+			}
+
 			foreach (var f in SpellingSource.Read(snapshotDirectory, decidedWord))
 			{
 				var key = KeyOf(SpellingSource.Type, f.Page, f.Detail);
 				var local = fileByUrl.TryGetValue(f.Page, out var file) ? Local(file) : null;
-				items.Add(Item(SpellingSource.Type, f.Page, [key], f.Detail, f.Context, local) with { ValidIn = f.ValidIn, ContextDe = f.ContextDe });
+				var occurrences = f.Occurrences ?? [];
+				var page = occurrences.Count > 0 ? PageOf(local) : null;
+				items.Add(Item(SpellingSource.Type, f.Page, [key], f.Detail, f.Context, local) with
+				{
+					ValidIn = f.ValidIn,
+					ContextDe = f.ContextDe,
+					Markup = SpellingMarkup.For(page, f.Word, occurrences, Text.DocumentLanguage.English),
+					MarkupDe = SpellingMarkup.For(page, f.Word, occurrences, Text.DocumentLanguage.German),
+				});
 			}
 
 			return items;

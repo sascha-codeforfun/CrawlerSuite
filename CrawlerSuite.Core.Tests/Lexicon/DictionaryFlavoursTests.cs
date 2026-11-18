@@ -69,6 +69,7 @@ namespace CrawlerSuite.Core.Tests.Lexicon
 		[Theory]
 		[InlineData("<html lang=\"en-US\">", "en-us")]
 		[InlineData("<html lang=\"en-UK\">", "en-gb")]
+		[InlineData("<html lang=\"EN_gb\">", "en-gb")]
 		[InlineData("<html lang=\"de\">", "de")]
 		[InlineData("<html>", "fallback")]
 		public void ThePageTag_KeepsItsFlavour(string html, string tag)

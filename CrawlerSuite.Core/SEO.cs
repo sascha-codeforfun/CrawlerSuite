@@ -148,8 +148,12 @@ namespace CrawlerSuite.Core
 				string descriptionValue = descriptionNode?.GetAttributeValue("content", string.Empty) ?? string.Empty;
 				int descriptionLength = descriptionValue.Length;
 
-				var robotsNode = doc.DocumentNode.SelectSingleNode(CrawlerSuite.Core.Html.XPaths.MetaByName("robots"));
-				string robotsValue = robotsNode?.GetAttributeValue("content", string.Empty) ?? string.Empty;
+				// Every robots tag: search engines take the most restrictive, so "index" in one and
+				// "noindex" in another is out of search. Several are joined as one directive list.
+				var robotsNodes = doc.DocumentNode.SelectNodes(CrawlerSuite.Core.Html.XPaths.MetaByName("robots"));
+				string robotsValue = robotsNodes is null
+					? string.Empty
+					: string.Join(", ", robotsNodes.Select(n => n.GetAttributeValue("content", string.Empty).Trim()).Where(v => v.Length > 0));
 
 				var keywordsNode = doc.DocumentNode.SelectSingleNode(CrawlerSuite.Core.Html.XPaths.MetaByName("keywords"));
 				string keywordsValue = keywordsNode?.GetAttributeValue("content", string.Empty) ?? string.Empty;

@@ -254,8 +254,8 @@ namespace CrawlerSuite.Core.SpellCheck
 		/// text segment (inline phrasing children glued in place) and every non-empty attribute value,
 		/// each bound to its node.
 		/// </summary>
-		public static IEnumerable<TextRun> Traverse(HtmlDocument doc, IReadOnlySet<string>? skipAttributeNames = null, bool checkJavaScript = false, IReadOnlySet<string>? metaContentNames = null, BoilerplateMatcher? globalIgnore = null, IReadOnlySet<string>? htmlTagsToIgnore = null)
-			=> Harvest(doc, pageMatcher: null, skipAttributeNames, checkJavaScript, metaContentNames, globalIgnore, htmlTagsToIgnore);
+		public static IEnumerable<TextRun> Traverse(HtmlDocument doc, IReadOnlySet<string>? skipAttributeNames = null, bool checkJavaScript = false, IReadOnlySet<string>? metaContentNames = null, BoilerplateMatcher? globalIgnore = null, IReadOnlySet<string>? htmlTagsToIgnore = null, bool checkComments = false)
+			=> Harvest(doc, pageMatcher: null, skipAttributeNames, checkJavaScript, metaContentNames, globalIgnore, htmlTagsToIgnore, checkComments);
 
 		/// <summary>
 		/// Walk the DOM yielding runs, but PRUNE declared-boilerplate subtrees when this is not a
@@ -265,13 +265,13 @@ namespace CrawlerSuite.Core.SpellCheck
 		/// is skipped along with its attributes; everything else is checked (the fail-loud default:
 		/// undeclared content is always checked, never silently dropped).
 		/// </summary>
-		public static IEnumerable<TextRun> Traverse(HtmlDocument doc, BoilerplateMatcher? matcher, bool isReferencePage, IReadOnlySet<string>? skipAttributeNames = null, bool checkJavaScript = false, IReadOnlySet<string>? metaContentNames = null, BoilerplateMatcher? globalIgnore = null, IReadOnlySet<string>? htmlTagsToIgnore = null)
+		public static IEnumerable<TextRun> Traverse(HtmlDocument doc, BoilerplateMatcher? matcher, bool isReferencePage, IReadOnlySet<string>? skipAttributeNames = null, bool checkJavaScript = false, IReadOnlySet<string>? metaContentNames = null, BoilerplateMatcher? globalIgnore = null, IReadOnlySet<string>? htmlTagsToIgnore = null, bool checkComments = false)
 		{
 			// Reference page, no matcher, or no selectors → page-boilerplate pruning is off (the global
 			// technical-ignore still applies — it is orthogonal to boilerplate). Otherwise the page
 			// matcher prunes declared boilerplate subtrees.
 			BoilerplateMatcher? pageMatcher = (isReferencePage || matcher == null || matcher.IsEmpty) ? null : matcher;
-			return Harvest(doc, pageMatcher, skipAttributeNames, checkJavaScript, metaContentNames, globalIgnore, htmlTagsToIgnore);
+			return Harvest(doc, pageMatcher, skipAttributeNames, checkJavaScript, metaContentNames, globalIgnore, htmlTagsToIgnore, checkComments);
 		}
 
 		/// <summary>
@@ -281,7 +281,7 @@ namespace CrawlerSuite.Core.SpellCheck
 		/// inline phrasing children and bound to their nearest block ancestor; attribute values are
 		/// emitted per element, unchanged.
 		/// </summary>
-		private static IEnumerable<TextRun> Harvest(HtmlDocument doc, BoilerplateMatcher? pageMatcher, IReadOnlySet<string>? skipAttributeNames, bool checkJavaScript, IReadOnlySet<string>? metaContentNames, BoilerplateMatcher? globalIgnore, IReadOnlySet<string>? htmlTagsToIgnore)
+		private static IEnumerable<TextRun> Harvest(HtmlDocument doc, BoilerplateMatcher? pageMatcher, IReadOnlySet<string>? skipAttributeNames, bool checkJavaScript, IReadOnlySet<string>? metaContentNames, BoilerplateMatcher? globalIgnore, IReadOnlySet<string>? htmlTagsToIgnore, bool checkComments = false)
 		{
 			IReadOnlySet<string> metaAllow = metaContentNames ?? DefaultMetaContentNames;
 
@@ -392,6 +392,16 @@ namespace CrawlerSuite.Core.SpellCheck
 
 				if (node.NodeType != HtmlNodeType.Element)
 				{
+					// HTML comments, when they are checked: each one its own run, read where it stands
+					// (its language is the nearest lang around it). The buffered text is left as it is —
+					// a comment is invisible and creates no word boundary in the page's text.
+					if (checkComments && node.NodeType == HtmlNodeType.Comment
+						&& !IsTextPruned(node, checkJavaScript, htmlTagsToIgnore, globalIgnore, pageMatcher)
+						&& CommentProse(((HtmlCommentNode)node).Comment) is { } prose)
+					{
+						yield return new TextRun(node, RunSource.Comment, CommentPath, prose) { LanguageNode = node.ParentNode };
+					}
+
 					// Comments and other invisible nodes create no word boundary — leave the buffer.
 					continue;
 				}
@@ -687,13 +697,71 @@ namespace CrawlerSuite.Core.SpellCheck
 		/// EXITING an excluded element ("…&lt;/a&gt;tail" or text after a nested block) where no new
 		/// element is entered between the two text nodes.
 		/// </summary>
+		/// <summary>The source path of a comment run.</summary>
+		internal const string CommentPath = "#comment";
+
+		/// <summary>
+		/// The text of a comment worth checking, without its "&lt;!--" and "--&gt;"; null for a
+		/// conditional comment ([if …], [endif]), a doctype or other declaration, an empty one, or one
+		/// shaped like code or markup (tags, braces, semicolons, "=" — commented-out HTML, CSS or script).
+		/// </summary>
+		internal static string? CommentProse(string? comment)
+		{
+			var text = comment ?? string.Empty;
+			if (!text.StartsWith("<!--", StringComparison.Ordinal))
+			{
+				return null; // a doctype, a bogus comment ("<!x …>"): not a comment's prose
+			}
+
+			text = text[4..];
+			if (text.EndsWith("-->", StringComparison.Ordinal))
+			{
+				text = text[..^3];
+			}
+
+			text = text.Trim();
+			if (text.Length == 0
+				|| text.StartsWith('[') || text.EndsWith(']')            // [if IE]>…<![endif], <![endif]
+				|| text.IndexOfAny(['<', '>', '{', '}', ';', '=']) >= 0)  // commented-out markup, CSS or script
+			{
+				return null;
+			}
+
+			return text;
+		}
+
+		/// <summary>
+		/// Whether text in two normalised language tags may share a run: the same language, and
+		/// where both tags name a flavour (a subtag after the language), the same flavour.
+		/// </summary>
+		internal static bool SameLanguageRun(string tagA, string tagB)
+		{
+			if (string.Equals(tagA, tagB, StringComparison.Ordinal))
+			{
+				return true;
+			}
+
+			if (!string.Equals(CrawlerSuite.Core.Lexicon.LanguageTags.BaseOf(tagA),
+				CrawlerSuite.Core.Lexicon.LanguageTags.BaseOf(tagB), StringComparison.Ordinal))
+			{
+				return false;
+			}
+
+			// One of them is the bare language: it names no other flavour.
+			return !tagA.Contains('-') || !tagB.Contains('-');
+		}
+
 		private static bool Gluable(HtmlNode a, HtmlNode b)
 		{
 			// A lang on an inline element (<span lang="en">) makes its text another language: it is
 			// checked on its own, in that language, so it never glues to text outside it.
-			// (Compared by language: a span repeating the surrounding language changes nothing.)
-			if (!string.Equals(CrawlerSuite.Core.Html.Language.NearestElementLanguage(a.ParentNode, string.Empty),
-				CrawlerSuite.Core.Html.Language.NearestElementLanguage(b.ParentNode, string.Empty), StringComparison.Ordinal))
+			// Compared by language, and by flavour where both name one: a span repeating the
+			// surrounding language changes nothing ("de-DE" inside "de" names no other dictionary),
+			// while another flavour of the same language (en-US inside en-GB) is its own run, so its
+			// words are checked against that flavour's dictionary.
+			if (!SameLanguageRun(
+				CrawlerSuite.Core.Html.Language.NearestElementTag(a.ParentNode, string.Empty),
+				CrawlerSuite.Core.Html.Language.NearestElementTag(b.ParentNode, string.Empty)))
 			{
 				return false;
 			}

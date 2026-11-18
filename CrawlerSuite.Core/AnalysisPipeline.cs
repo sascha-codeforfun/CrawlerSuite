@@ -985,7 +985,10 @@ namespace CrawlerSuite.Core
 					new CrawlerSuite.Core.Suppressions.AdjacentAnchorSpellSuppression(ctx.ContentQualityIssues),
 					acronyms: CrawlerSuite.Core.SpellCheck.AcronymRule.From(config.SpellCheckEngine),
 					properNames: CrawlerSuite.Core.Quality.ProperNames.From(config),
-					languageKey: LanguageKey);
+					languageKey: LanguageKey,
+					commentAsText: config.ContentQuality.CheckCommentAsText
+						? new CrawlerSuite.Core.Suppressions.CommentAsTextSpellSuppression(ctx.ContentQualityIssues)
+						: null);
 
 				var js = config.SpellCheckEngine.SpellCheckJavaScript;
 				if (js.BulkScanPageScript)
@@ -1143,7 +1146,12 @@ namespace CrawlerSuite.Core
 					knownParts,
 					properNames: CrawlerSuite.Core.Quality.ProperNames.From(config),
 					languageKey: LanguageKey,
-					deferSuggestions: write => _writeSuggestions = write);
+					deferSuggestions: write => _writeSuggestions = write,
+					// Cross-pass dedup: the words of a comment the page shows as text are reported once,
+					// by COMMENT_AS_TEXT with its cause; see CommentAsTextSpellSuppression.
+					commentAsText: config.ContentQuality.CheckCommentAsText
+						? new CrawlerSuite.Core.Suppressions.CommentAsTextSpellSuppression(ctx.ContentQualityIssues)
+						: null);
 
 				// How much the technical XPaths, attributes and boilerplate parts were needed: shown on
 				// the settings screen. A failure to write it costs only that display.

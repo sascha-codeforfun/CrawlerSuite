@@ -97,6 +97,13 @@ namespace CrawlerSuite.Core.Text
 
 		private static string System(string name) => QuoteSystems.TryGetValue(name, out var german) ? german : name;
 
+		// ": first “a”, then “b”" / ", the same value each time: “a”", in German with German quotes.
+		private static string AttributeValues(string rest) =>
+			rest.Replace("“", "„", StringComparison.Ordinal).Replace("”", "“", StringComparison.Ordinal)
+				.Replace(": first „", ": zuerst „", StringComparison.Ordinal)
+				.Replace("“, then „", "“, dann „", StringComparison.Ordinal)
+				.Replace(", the same value each time: „", ", jedes Mal derselbe Wert: „", StringComparison.Ordinal);
+
 		private static string Systems(string list) => string.Join(", ", list.Split(", ").Select(System));
 
 		/// <summary>What a hyphen-spacing finding names (HyphenSpacing).</summary>
@@ -245,6 +252,11 @@ namespace CrawlerSuite.Core.Text
 			// HyphenSpacing
 			(R(@"^(?<src>[^:]+): (?<what>stray space after the hyphen|“/” or a joining word missing after the hyphen|space after the hyphen|“/” or a joining word missing before the hyphen|space before the hyphen|space at the slash) in “(?<t>.*)”$"),
 				m => $"{m.Groups["src"].Value}: {HyphenWhat[m.Groups["what"].Value]} in „{m.Groups["t"].Value}“"),
+
+			// DuplicateAttributes
+			(R(@"^Attribute “(?<n>[^”]*)” written (?<c>\d+) times in <(?<t>[^>]*)>(?<rest>(?:: first |, the same value each time: ).*?)(?: \(×(?<k>[\d.,]+) on this page\))?$"),
+				m => $"Attribut „{m.Groups["n"].Value}“ {m.Groups["c"].Value}-mal in <{m.Groups["t"].Value}>{AttributeValues(m.Groups["rest"].Value)}"
+					+ (m.Groups["k"].Success ? $" (×{m.Groups["k"].Value} auf dieser Seite)" : string.Empty)),
 
 			// DoubledWords (PUNCTUATION_WEAK and WORD_DOUBLED)
 			(R(@"^(?<src>[^:]+): “(?<w>.*)” before a line break and again after it — a colon would mark it as the lead-in \(“(?<w2>.*)”\)$"),

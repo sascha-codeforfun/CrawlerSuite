@@ -16,6 +16,9 @@ namespace CrawlerSuite.Run;
 public sealed class TriageModel : Observable
 {
 	private IReadOnlyList<TriageItem> items = [];
+
+	// Each page's search column of log 08: the "In search" pill, its chips and the list order.
+	private IReadOnlyDictionary<string, string> searchByPage = new Dictionary<string, string>();
 	private Dictionary<string, TriageMode> modes = TriageSwitches.Defaults();
 	private TriageLedger ledger = new();
 	private string ledgerPath = string.Empty;
@@ -152,12 +155,12 @@ public sealed class TriageModel : Observable
 		};
 
 		var day = DateTime.Now;
-		foreach (var item in TriageBoard.Pages(items, modes, ledgerOfSweep).SelectMany(p => p.All))
+		foreach (var item in TriageBoard.Pages(items, modes, ledgerOfSweep, searchByPage).SelectMany(p => p.All))
 		{
 			ledgerOfSweep.Decide(item, Verdict.Ticket, string.Empty, day);
 		}
 
-		return TriageBoard.Pages(items, modes, ledgerOfSweep)
+		return TriageBoard.Pages(items, modes, ledgerOfSweep, searchByPage)
 			.Select(p => new TriagePageVm(copy, p, ledgerOfSweep.PageOf(p.Url), ledgerOfSweep.PreviouslyTicketed(p.Url)))
 			.ToList();
 	}
@@ -243,7 +246,7 @@ public sealed class TriageModel : Observable
 		var key = (items, string.Join(",", modes.OrderBy(m => m.Key, StringComparer.Ordinal).Select(m => $"{m.Key}={m.Value}")));
 		if (wordPages is null || wordPagesFor is not { } was || !ReferenceEquals(was.Items, key.items) || was.Modes != key.Item2)
 		{
-			wordPages = PageSearch.WordPages(TriageBoard.Pages(items, modes, ledger));
+			wordPages = PageSearch.WordPages(TriageBoard.Pages(items, modes, ledger, searchByPage));
 			wordPagesFor = key;
 		}
 
@@ -259,6 +262,21 @@ public sealed class TriageModel : Observable
 
 	/// <summary>The decision chips: Open · Edited · Ticketed · Changed since ticketed. None lit at the start: every page is listed, ticketed ones too.</summary>
 	public ObservableCollection<TriageFilterChipVm> DecisionChips { get; } = [];
+
+	/// <summary>The search chips: In search · Not in search. None lit at the start; none at all without log 08.</summary>
+	public ObservableCollection<TriageFilterChipVm> SearchChips { get; } = [];
+
+	private void BuildSearchChips()
+	{
+		SearchChips.Clear();
+		if (searchByPage.Values.All(v => v == PageSearchStatus.Unknown))
+		{
+			return; // nothing known about search (no log 08, 03 or saved PDF): no chips
+		}
+
+		SearchChips.Add(new TriageFilterChipVm(PageSearchStatus.InKey, "In search", PageSourceRole.Other, false, UpdateList));
+		SearchChips.Add(new TriageFilterChipVm(PageSearchStatus.OutKey, "Not in search", PageSourceRole.Other, false, UpdateList));
+	}
 
 	private const string NoSource = "";
 
@@ -294,6 +312,11 @@ public sealed class TriageModel : Observable
 		foreach (var chip in DecisionChips)
 		{
 			chip.Count = all.Count(p => p.Decision.ToString() == chip.Key);
+		}
+
+		foreach (var chip in SearchChips)
+		{
+			chip.Count = all.Count(p => PageSearchStatus.KeyOf(p.Search) == chip.Key);
 		}
 
 		if (!HasSources)
@@ -347,24 +370,26 @@ public sealed class TriageModel : Observable
 	/// Before a match removes anything, the ledger file is backed up. <paramref name="decidedWord"/>
 	/// names spelling findings a dictionary holds by now: they are not triaged.
 	/// </summary>
-	public static (IReadOnlyList<TriageItem> Items, TriageLedger Ledger, string LedgerPath, bool ReadOnly, int Gone, string ReadOnlyReason) Read(
-		string snapshotDirectory, Func<string, bool>? decidedWord = null, IReadOnlyList<string>? titlePatterns = null)
+	public static (IReadOnlyList<TriageItem> Items, TriageLedger Ledger, string LedgerPath, bool ReadOnly, int Gone, string ReadOnlyReason, IReadOnlyDictionary<string, string> SearchByPage) Read(
+		string snapshotDirectory, Func<string, bool>? decidedWord = null, IReadOnlyList<string>? titlePatterns = null,
+		bool canonicalsOfNoindexPages = false)
 	{
-		var found = TriageSource.Read(snapshotDirectory, decidedWord, titlePatterns);
+		var found = TriageSource.Read(snapshotDirectory, decidedWord, titlePatterns, canonicalsOfNoindexPages);
+		var search = PageSearchStatus.ForPages(snapshotDirectory, found.Select(i => i.Page));
 		var path = TriageLedger.PathFor(snapshotDirectory);
 		var loaded = TriageLedger.Load(path);
 		var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(snapshotDirectory));
 		if (!loaded.AcceptsSnapshot(name))
 		{
 			return (found, loaded, path, true, 0,
-				$"This snapshot is older than {loaded.Snapshot}, which the ledger was last matched against. Verdicts are shown but cannot be changed — open the newest snapshot to triage.");
+				$"This snapshot is older than {loaded.Snapshot}, which the ledger was last matched against. Verdicts are shown but cannot be changed — open the newest snapshot to triage.", search);
 		}
 
 		if (!TriageSource.HasFindingLogs(snapshotDirectory))
 		{
 			return (found, loaded, path, true, 0,
 				"This snapshot has no content-quality logs (10 and 22): a crawl only, an analysis that stopped, or content quality switched off. " +
-				"The ledger is left as it is; verdicts cannot be changed here. Run the analysis on it to triage.");
+				"The ledger is left as it is; verdicts cannot be changed here. Run the analysis on it to triage.", search);
 		}
 
 		// The newest snapshot: what is gone is gone — with the ledger as it was kept as a backup.
@@ -374,6 +399,7 @@ public sealed class TriageModel : Observable
 		keys.AddRange(BrokenLinkSource.KeptWithoutLogs(snapshotDirectory, loaded)); // no log 07: not looked is not fixed
 		keys.AddRange(SelfLinkSource.KeptWithoutLogs(snapshotDirectory, loaded)); // no log 09: the same
 		keys.AddRange(CanonicalSource.KeptWithoutLogs(snapshotDirectory, loaded)); // no log 16: the same
+		keys.AddRange(CanonicalSource.KeptForNoindexPages(snapshotDirectory, canonicalsOfNoindexPages)); // left out, not fixed
 		keys.AddRange(ForwardingLinkSource.KeptWithoutLogs(snapshotDirectory, loaded)); // no log 40: the same
 		keys.AddRange(ImageSource.KeptWithoutLogs(snapshotDirectory, loaded)); // no log 25: the same
 		keys.AddRange(SeoSource.KeptWithoutLogs(snapshotDirectory, loaded)); // no log 08: the same
@@ -385,12 +411,12 @@ public sealed class TriageModel : Observable
 		}
 
 		loaded.Save(path);
-		return (found, loaded, path, false, gone, string.Empty);
+		return (found, loaded, path, false, gone, string.Empty, search);
 	}
 
 	/// <summary>Shows what <see cref="Read"/> returned, counted by the switches the settings set (Settings → Triage).</summary>
 	public void Show(string snapshotDirectory, string siteLabel,
-		(IReadOnlyList<TriageItem> Items, TriageLedger Ledger, string LedgerPath, bool ReadOnly, int Gone, string ReadOnlyReason) read,
+		(IReadOnlyList<TriageItem> Items, TriageLedger Ledger, string LedgerPath, bool ReadOnly, int Gone, string ReadOnlyReason, IReadOnlyDictionary<string, string> SearchByPage) read,
 		Func<string, PageSource?>? pageSources = null,
 		Core.Quality.ProperNameKeeper? names = null,
 		IReadOnlyDictionary<string, string>? configuredModes = null,
@@ -400,6 +426,7 @@ public sealed class TriageModel : Observable
 		Dictionaries = dictionaries ?? TriageDictionary.None;
 		setAside.Clear();
 		items = read.Items;
+		searchByPage = read.SearchByPage;
 		sources = pageSources;
 		// A stylesheet or script entry has a name to show even without a content list.
 		HasSources = items.Select(i => i.Page).Distinct(StringComparer.OrdinalIgnoreCase)
@@ -420,9 +447,12 @@ public sealed class TriageModel : Observable
 		Raise(nameof(SearchActive));
 		BuildSwitches();
 		BuildDecisionChips();
+		BuildSearchChips();
 		SourceChips.Clear();
-		RefreshChips(TriageBoard.Pages(items, modes, ledger));
+		RefreshChips(TriageBoard.Pages(items, modes, ledger, searchByPage));
 		Page = null;
+		walked = false;
+		resumeUrl = null;
 		rows.Clear();
 		Pages.Clear();
 		UpdateList();
@@ -433,6 +463,7 @@ public sealed class TriageModel : Observable
 	public void ShowNone(string message)
 	{
 		items = [];
+		searchByPage = new Dictionary<string, string>();
 		ledger = new TriageLedger();
 		sources = null;
 		HasSources = false;
@@ -440,6 +471,9 @@ public sealed class TriageModel : Observable
 		DecisionChips.Clear();
 		HasSnapshot = false;
 		Page = null;
+		walked = false;
+		resumeUrl = null;
+		ResumeText = string.Empty;
 		Families.Clear();
 		rows.Clear();
 		Pages.Clear();
@@ -509,9 +543,11 @@ public sealed class TriageModel : Observable
 	{
 		TriageFilterChipVm.Dim(DecisionChips);
 		TriageFilterChipVm.Dim(SourceChips);
+		TriageFilterChipVm.Dim(SearchChips);
 		var search = searchText.Trim();
 		return all.Where(p => (p.HasBidi || TriageFilterChipVm.Lets(DecisionChips, p.Decision.ToString()))
 				&& (SourceChips.Count == 0 || TriageFilterChipVm.Lets(SourceChips, SourceKeyOf(p.Url)))
+				&& (SearchChips.Count == 0 || TriageFilterChipVm.Lets(SearchChips, PageSearchStatus.KeyOf(p.Search)))
 				&& PageSearch.Lets(p, search))
 			.ToList();
 	}
@@ -523,7 +559,7 @@ public sealed class TriageModel : Observable
 	/// </summary>
 	public void RefreshPages()
 	{
-		var all = TriageBoard.Pages(items, modes, ledger);
+		var all = TriageBoard.Pages(items, modes, ledger, searchByPage);
 		var listed = Listed(all);
 		var byUrl = all.ToDictionary(p => p.Url, StringComparer.OrdinalIgnoreCase);
 		foreach (var row in Pages)
@@ -559,7 +595,7 @@ public sealed class TriageModel : Observable
 	/// <summary>Brings the list up to date — only the differences: rows are added, removed or moved, never rebuilt.</summary>
 	public void UpdateList()
 	{
-		var all = TriageBoard.Pages(items, modes, ledger);
+		var all = TriageBoard.Pages(items, modes, ledger, searchByPage);
 		var listed = Listed(all);
 		var wanted = listed.ToDictionary(p => p.Url, StringComparer.OrdinalIgnoreCase);
 
@@ -593,6 +629,7 @@ public sealed class TriageModel : Observable
 
 		PendingText = string.Empty;
 		RefreshBanner(all, listed);
+		RefreshResume();
 	}
 
 	private void RefreshBanner(IReadOnlyList<PageSummary> all, IReadOnlyList<PageSummary> listed)
@@ -666,6 +703,10 @@ public sealed class TriageModel : Observable
 		sb.Append("Switches: ").Append(filterSummary).Append(nl);
 		sb.Append("List: ").Append(Mask.ApplyStrict(listSummaryForAi)).Append(nl);
 		sb.Append("Decision chips: ").Append(string.Join(" · ", DecisionChips.Select(c => $"{c.Label} {c.Count}{(c.IsOn ? " (lit)" : string.Empty)}"))).Append(nl);
+		if (SearchChips.Count > 0)
+		{
+			sb.Append("Search chips: ").Append(string.Join(" · ", SearchChips.Select(c => $"{c.Label} {c.Count}{(c.IsOn ? " (lit)" : string.Empty)}"))).Append(nl);
+		}
 		if (SourceChips.Count > 0)
 		{
 			sb.Append($"Source chips: {SourceChips.Count}, {SourceChips.Count(c => c.IsOn)} lit").Append(nl);
@@ -700,28 +741,81 @@ public sealed class TriageModel : Observable
 		return sb.ToString();
 	}
 
-	/// <summary>Opens a page for deciding.</summary>
-	public void Open(string url)
+	/// <summary>Opens a page for deciding, from the list or from elsewhere: a new walk starts here.</summary>
+	public void Open(string url) => Show(url, walking: false);
+
+	/// <summary>Opens the page Previous or Next (or the end of a filing) moved to: the walk goes on.</summary>
+	public void WalkTo(string url) => Show(url, walking: true);
+
+	// Whether the open page was reached by walking, and the page to go back to after leaving a walk.
+	private bool walked;
+	private string? resumeUrl;
+	private string resumeText = string.Empty;
+
+	/// <summary>"Back to the walk · Page 7 of 12" after leaving a walk; empty when there is none.</summary>
+	public string ResumeText { get => resumeText; private set { if (Set(ref resumeText, value)) { Raise(nameof(CanResume)); } } }
+
+	public bool CanResume => resumeText.Length > 0;
+
+	/// <summary>Reopens the page the walk was left at; Previous and Next go on from there.</summary>
+	public void ResumeWalk()
 	{
-		var summary = TriageBoard.Pages(items, modes, ledger).FirstOrDefault(p => string.Equals(p.Url, url, StringComparison.OrdinalIgnoreCase));
-		Page = summary is null ? null : new TriagePageVm(this, summary, ledger.PageOf(url), ledger.PreviouslyTicketed(url));
+		if (resumeUrl is { } url)
+		{
+			WalkTo(url);
+		}
 	}
 
-	/// <summary>Back to the list: the rows update in place; nothing is rebuilt.</summary>
+	// The offer stands while its page is still in the list on screen; its position follows the list.
+	private void RefreshResume()
+	{
+		if (resumeUrl is { } url && !ListedUrls().Contains(url, StringComparer.OrdinalIgnoreCase))
+		{
+			resumeUrl = null;
+		}
+
+		ResumeText = resumeUrl is null ? string.Empty : "Back to the walk · " + TriageBoard.Position(ListedUrls(), resumeUrl);
+	}
+
+	private void Show(string url, bool walking)
+	{
+		walked = walking;
+		resumeUrl = null;
+		ResumeText = string.Empty;
+		var summary = TriageBoard.Pages(items, modes, ledger, searchByPage).FirstOrDefault(p => string.Equals(p.Url, url, StringComparison.OrdinalIgnoreCase));
+		Page = summary is null ? null : new TriagePageVm(this, summary, ledger.PageOf(url), ledger.PreviouslyTicketed(url));
+		PagePosition = summary is null ? string.Empty : TriageBoard.Position(ListedUrls(), url);
+	}
+
+	/// <summary>
+	/// Back to the list: the rows update in place; nothing is rebuilt. Leaving a page reached by
+	/// walking offers the way back to it; the list itself returns to the row the walk started from.
+	/// </summary>
 	public void Close()
 	{
+		resumeUrl = walked ? Page?.Url : null;
+		walked = false;
 		Page = null;
 		RefreshPages();
+		RefreshResume();
 	}
 
-	/// <summary>The next page that still needs deciding after <paramref name="url"/>, or null.</summary>
-	public string? NextAfter(string url)
-	{
-		var open = TriageBoard.Pages(items, modes, ledger).Where(p => p.Status != PageStatus.Filed).Select(p => p.Url).ToList();
-		int at = open.FindIndex(u => string.Equals(u, url, StringComparison.OrdinalIgnoreCase));
-		var rest = at < 0 ? open : open.Skip(at + 1).Concat(open.Take(at));
-		return rest.FirstOrDefault(u => !string.Equals(u, url, StringComparison.OrdinalIgnoreCase));
-	}
+	// The walk follows the list on screen: the rows the chips let through, in their order, filed ones
+	// included (walking is for looking too). It changes only when the list does — Update list or a
+	// chip — never because a page was decided or filed.
+
+	/// <summary>The row after <paramref name="url"/> in the list on screen, going round; null when there is no other.</summary>
+	public string? NextAfter(string url) => TriageBoard.Neighbour(ListedUrls(), url, +1);
+
+	/// <summary>The row before <paramref name="url"/> in the list on screen, going round; null when there is no other.</summary>
+	public string? PreviousBefore(string url) => TriageBoard.Neighbour(ListedUrls(), url, -1);
+
+	private string pagePosition = string.Empty;
+
+	/// <summary>Where the open page stands in the list on screen: "Page 3 of 5".</summary>
+	public string PagePosition { get => pagePosition; private set => Set(ref pagePosition, value); }
+
+	private List<string> ListedUrls() => Pages.Select(r => r.Url).ToList();
 
 	// ── Ledger writes (from the page view) ──────────────────────────────────
 
@@ -922,6 +1016,9 @@ public sealed class TriagePageRowVm : Observable
 {
 	private bool hasBidi;
 	private bool hasSecurity;
+	private string searchKey = PageSearchStatus.NoneKey;
+	private string searchLabel = string.Empty;
+	private string searchReason = string.Empty;
 	private PageStatus status;
 	private int count;
 	private string families = string.Empty;
@@ -960,6 +1057,24 @@ public sealed class TriagePageRowVm : Observable
 
 	public PageStatus Status { get => status; private set => Set(ref status, value); }
 
+	/// <summary>"In search", "Not in search" or "Search unknown"; empty when the entry is no page: no pill.</summary>
+	public string SearchLabel { get => searchLabel; private set => Set(ref searchLabel, value); }
+
+	/// <summary>The pill's tooltip: why the page is or is not in search.</summary>
+	public string SearchReason { get => searchReason; private set => Set(ref searchReason, value); }
+
+	/// <summary>The entry has a search pill (it is a page).</summary>
+	public bool HasSearchStatus => searchKey != PageSearchStatus.NoneKey;
+
+	/// <summary>The accent pill: the page may appear in search.</summary>
+	public bool ShowsInSearch => searchKey == PageSearchStatus.InKey;
+
+	/// <summary>The muted pill: the page is kept out of search.</summary>
+	public bool ShowsNotInSearch => searchKey == PageSearchStatus.OutKey;
+
+	/// <summary>The neutral pill: nothing in the snapshot tells.</summary>
+	public bool ShowsSearchUnknown => searchKey == PageSearchStatus.UnknownKey;
+
 	public int Count { get => count; private set => Set(ref count, value); }
 
 	public string CountText => Format.Count(Count);
@@ -984,6 +1099,13 @@ public sealed class TriagePageRowVm : Observable
 		notCounted = false;
 		HasBidi = page.HasBidi;
 		HasSecurity = page.HasSecurity;
+		searchKey = PageSearchStatus.KeyOf(page.Search);
+		SearchLabel = PageSearchStatus.LabelOf(page.Search);
+		SearchReason = PageSearchStatus.ReasonOf(page.Search);
+		Raise(nameof(HasSearchStatus));
+		Raise(nameof(ShowsInSearch));
+		Raise(nameof(ShowsNotInSearch));
+		Raise(nameof(ShowsSearchUnknown));
 		Status = page.Status;
 		Count = page.Triaged.Count;
 		Families = string.Join(" · ", page.ByFamily.Select(f => $"{f.Family} {f.Count}"));
@@ -1026,6 +1148,9 @@ public sealed class TriagePageVm : Observable
 		ticketsText = string.Join(", ", entry.Tickets);
 		Tickets = entry.Tickets.ToList();
 		Snippet = summary.All.Select(i => i.Snippet).FirstOrDefault(s => s is not null);
+		searchKey = PageSearchStatus.KeyOf(summary.Search);
+		SearchLabel = PageSearchStatus.LabelOf(summary.Search);
+		SearchReason = PageSearchStatus.ReasonOf(summary.Search);
 
 		// One explanation card per kind of defect on the page, above its first item. The broken-links
 		// card explains all broken links, whatever the reach of the first.
@@ -1065,6 +1190,26 @@ public sealed class TriagePageVm : Observable
 
 	/// <summary>The page's source value and label as the content list has them; empty when unknown.</summary>
 	public string SourceText { get; }
+
+	private readonly string searchKey;
+
+	/// <summary>"In search", "Not in search" or "Search unknown", shown beside the address; empty when the entry is no page: no pill.</summary>
+	public string SearchLabel { get; }
+
+	/// <summary>The pill's tooltip: why the page is or is not in search.</summary>
+	public string SearchReason { get; }
+
+	/// <summary>The entry has a search pill (it is a page).</summary>
+	public bool HasSearchStatus => searchKey != PageSearchStatus.NoneKey;
+
+	/// <summary>The accent pill: the page may appear in search.</summary>
+	public bool ShowsInSearch => searchKey == PageSearchStatus.InKey;
+
+	/// <summary>The muted pill: the page is kept out of search.</summary>
+	public bool ShowsNotInSearch => searchKey == PageSearchStatus.OutKey;
+
+	/// <summary>The neutral pill: nothing in the snapshot tells.</summary>
+	public bool ShowsSearchUnknown => searchKey == PageSearchStatus.UnknownKey;
 
 	/// <summary>The CMS editor link for the page; empty when it cannot be built.</summary>
 	public string CmsLink { get; }
@@ -1483,6 +1628,9 @@ public sealed class TriageItemVm : Observable
 	public string Detail => Item.Detail;
 
 	public string Context => Item.Context;
+
+	/// <summary>What the item shows as its context: a spelling finding's markup from the saved page where there is one, else the context.</summary>
+	public string ContextShown => Item.Markup ?? Item.Context;
 
 	public string Type => Item.Type;
 

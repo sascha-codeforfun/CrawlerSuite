@@ -46,7 +46,9 @@ namespace CrawlerSuite.Core.Triage
 		/// <param name="Context">The excerpts, one per line; the meta field when the word is in one.</param>
 		/// <param name="ValidIn">Other reference dictionaries that know the word, for the operator only.</param>
 		/// <param name="ContextDe">The same in German: the source labels are words of the document.</param>
-		public sealed record Finding(string Page, string Word, string Detail, string Context, string ValidIn, string? ContextDe = null);
+		/// <param name="Occurrences">Each occurrence as log 13 has it — the place and the plain excerpt — for the markup (<see cref="SpellingMarkup"/>).</param>
+		public sealed record Finding(string Page, string Word, string Detail, string Context, string ValidIn, string? ContextDe = null,
+			IReadOnlyList<(string Source, string Excerpt)>? Occurrences = null);
 
 		/// <summary>The spelling findings of a snapshot. <paramref name="decided"/> names words a dictionary holds by now.</summary>
 		public static IReadOnlyList<Finding> Read(string snapshotDirectory, Func<string, bool>? decided = null)
@@ -115,7 +117,7 @@ namespace CrawlerSuite.Core.Triage
 					occurrences.Select(o => Shown(o.Source, o.Excerpt, language)).Where(l => l.Length > 0).Distinct(StringComparer.Ordinal));
 
 				return new Finding(key.Page, word, key.Detail, Lines(Text.DocumentLanguage.English),
-					validIn.TryGetValue(key.Detail, out var valid) ? valid : string.Empty, Lines(Text.DocumentLanguage.German));
+					validIn.TryGetValue(key.Detail, out var valid) ? valid : string.Empty, Lines(Text.DocumentLanguage.German), occurrences);
 			}).ToList();
 		}
 
@@ -143,7 +145,8 @@ namespace CrawlerSuite.Core.Triage
 			// A script body, or an inline event handler (onclick …): JavaScript either way.
 			bool script = m.Success && (m.Groups["script"].Success || m.Groups["element"].Value == "script"
 				|| m.Groups["attribute"].Value.StartsWith("on", StringComparison.OrdinalIgnoreCase));
-			string? label = !m.Success ? null
+			string? label = source == SpellCheck.DomTraverser.CommentPath ? Text.DocumentText.T(language, "In an HTML comment")
+				: !m.Success ? null
 				: script ? Text.DocumentText.T(language, "In the page's script")
 				: m.Groups["element"].Value == "meta" && m.Groups["name"].Value is { Length: > 0 } name
 					? name switch

@@ -150,6 +150,45 @@ namespace CrawlerSuite.Core.Tests.Display
 			Assert.Equal("Eisrand", html.Substring(tail.Start, tail.Length));
 		}
 
+		[Theory]
+		[InlineData(null)]
+		[InlineData("[0] Bare text abuts inline <span> without separator — words merge")]
+		public void ComputeWordCollisionSpans_LeadingSeam_NotTheBoldLabelInside(string? detail)
+		{
+			// A leading seam whose element opens with a bold label ending in a space: the label's
+			// closing tag before a capital is no seam (a space precedes it); the seam is before <span>.
+			var html = "rate per year<span class=\"tip\"><b>Note: </b>The figure is an example.</span>";
+			var spans = TriageHighlights.ComputeWordCollisionSpans(html, detail);
+
+			Assert.Equal("year", Text(html, spans, TriageHighlights.SplitSpanKind.Inside));
+			Assert.Equal("<span class=\"tip\"><b>", Text(html, spans, TriageHighlights.SplitSpanKind.Tag));
+			Assert.Equal("Note:", Text(html, spans, TriageHighlights.SplitSpanKind.Tail));
+		}
+
+		[Fact]
+		public void ComputeWordCollisionSpans_TrailingSide_OnlyTheNamedElementsTag()
+		{
+			// The finding names <span>: the inner </b> before a capital is not its seam.
+			var html = "<span>see <b>here</b>Now more</span>Then";
+			var spans = TriageHighlights.ComputeWordCollisionSpans(html, "[0] Inline <span> abuts bare text without separator — words merge");
+
+			Assert.Equal("</span>", Text(html, spans, TriageHighlights.SplitSpanKind.Tag));
+			Assert.Equal("Then", Text(html, spans, TriageHighlights.SplitSpanKind.Tail));
+		}
+
+		[Fact]
+		public void ComputeWordCollisionSpans_TrailingSide_NoSuchSeam_PaintsNothing()
+		{
+			var spans = TriageHighlights.ComputeWordCollisionSpans("<b>Note: </b>The end", "[0] Inline <b> abuts bare text without separator — words merge");
+			Assert.Empty(spans);
+		}
+
+		private static string Text(string html, IReadOnlyList<TriageHighlights.SplitSpan> spans, TriageHighlights.SplitSpanKind kind)
+		{
+			var span = spans.Single(s => s.Kind == kind);
+			return html.Substring(span.Start, span.Length);
+		}
+
 		[Fact]
 		public void ComputeWordCollisionSpans_SpaceAfterTag_NoSpans()
 		{

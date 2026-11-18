@@ -78,6 +78,15 @@ namespace CrawlerSuite.Core.SpellCheck
 		/// </summary>
 		public bool SuppressSpellFindingsCoveredByWordCollision { get; set; } = true;
 
+		/// <summary>
+		/// Spell-check the text of HTML comments (&lt;!-- … --&gt;). Off by default: comments are often
+		/// in another language or developer shorthand. On, each comment is its own run in the page's
+		/// (or nearest lang's) language, never joined to the text around it; conditional comments
+		/// ([if …]) and comments shaped like code or markup are left out, and a finding says it stands
+		/// in an HTML comment, which visitors do not see but anyone reading the source does.
+		/// </summary>
+		public bool CheckHtmlComments { get; set; }
+
 		public List<BoilerplateGroupConfig> BoilerplateGroups { get; set; } = [];
 
 		/// <summary>

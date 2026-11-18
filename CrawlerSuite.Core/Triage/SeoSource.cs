@@ -46,19 +46,20 @@ namespace CrawlerSuite.Core.Triage
 		];
 
 		/// <summary>
-		/// The switches, in order, with their labels and defaults. All ride along: search appearance is
+		/// The switches, in order, with their labels and defaults. Ride along: search appearance is
 		/// where an operator goes deeper once the pages are open for other reasons; on by default, it lists
-		/// a large share of a site at once, which nobody starts on. Switch them on for an SEO pass.
+		/// a large share of a site at once, which nobody starts on. Switch them on for an SEO pass. The two
+		/// cut-off estimates are off: on most sites they hit nearly every page, and Results still lists them.
 		/// </summary>
 		public static IReadOnlyList<(string Type, string Label, TriageMode Default)> Types { get; } =
 		[
 			(TitleMissing, "Title missing", TriageMode.RideAlong),
 			(TitlePatternMissed, "Title doesn't follow the site's title pattern", TriageMode.RideAlong),
 			(TitleShared, "Same title as other pages", TriageMode.RideAlong),
-			(TitleCut, "Title likely cut off", TriageMode.RideAlong),
+			(TitleCut, "Title likely cut off", TriageMode.Off),
 			(DescriptionMissing, "Description missing", TriageMode.RideAlong),
 			(DescriptionShared, "Same description as other pages", TriageMode.RideAlong),
-			(DescriptionCut, "Description likely cut off", TriageMode.RideAlong),
+			(DescriptionCut, "Description likely cut off", TriageMode.Off),
 			(Keywords, "Meta keywords present", TriageMode.RideAlong),
 		];
 
@@ -109,6 +110,39 @@ namespace CrawlerSuite.Core.Triage
 				.ToList();
 			return Items(rows, localOf, titlePatterns);
 		}
+
+		/// <summary>
+		/// Each page's search column of log 08 (<see cref="SEO.Search"/>), by address; for a log
+		/// written before the column existed, from the meta robots alone. Empty without log 08.
+		/// </summary>
+		public static IReadOnlyDictionary<string, string> SearchByPage(string snapshotDirectory)
+		{
+			var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			if (OutputFormats.ByNumber("08") is not { } format
+				|| Path.Combine(snapshotDirectory, format.PrimaryFileName) is not { } path
+				|| !File.Exists(path))
+			{
+				return map;
+			}
+
+			foreach (var c in FindingFiles.Csv(path, 12, header: true))
+			{
+				var page = c[0].Trim();
+				if (page.Length == 0 || page == "error")
+				{
+					continue;
+				}
+
+				var search = c[9].Trim();
+				map.TryAdd(page, search.Length > 0 ? search
+					: SearchRobots.IsOutOfSearch(c[1]) ? SEO.Search.NoindexInPage : SEO.Search.In);
+			}
+
+			return map;
+		}
+
+		/// <summary>Whether a value of the search column says noindex (in the page or by header).</summary>
+		public static bool IsNoindex(string? search) => search is SEO.Search.NoindexInPage or SEO.Search.NoindexByHeader;
 
 		/// <summary>
 		/// Whether a page may appear in search: the search column; for a log written before it

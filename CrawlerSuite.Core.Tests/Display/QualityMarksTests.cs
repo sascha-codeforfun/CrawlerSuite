@@ -15,6 +15,17 @@ namespace CrawlerSuite.Core.Tests.Display
 		}
 
 		[Fact]
+		public void Spelling_MarksTheWordAsFlagged_ElseInAnyCase_LineByLine()
+		{
+			// Line 1 has the word as flagged and once in small letters: only the flagged spelling is marked.
+			// Line 2 has it in small letters only: that occurrence is marked.
+			const string context = "<h1>Vapour and vapour</h1>\nThe vapour below.";
+			var marked = QualityMarks.For("SPELLING", context, "Vapour (en-US)", null);
+
+			Assert.Equal([4, 31], marked.Marks.Where(m => m.Role == MarkRole.Offender).Select(m => m.Start).ToList());
+		}
+
+		[Fact]
 		public void UnwantedPattern_MarksEveryOccurrence_IgnoringCase()
 		{
 			var marked = QualityMarks.For("UNWANTED_PATTERN", "Lorem ipsum … lorem", "Placeholder: Lorem — pattern: lorem", null);

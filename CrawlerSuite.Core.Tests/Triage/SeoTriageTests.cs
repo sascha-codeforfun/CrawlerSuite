@@ -77,15 +77,27 @@ namespace CrawlerSuite.Core.Tests.Triage
 		}
 
 		[Fact]
-		public void CutTexts_RideAlong_WithTheShownText()
+		public void CutTexts_AreOffByDefault_WithTheShownText()
 		{
 			Write(Row("water.html", LongTitle, "Rain"));
 
 			var cut = Assert.Single(Read(), i => i.Type == SeoSource.TitleCut);
 			Assert.Equal(LongTitle, cut.Detail);
 			Assert.StartsWith("Shown as: ", cut.Context);
-			Assert.Equal(TriageMode.RideAlong, TriageSwitches.Defaults()[SeoSource.TitleCut]);
-			Assert.Equal(TriageMode.RideAlong, TriageSwitches.Defaults()[SeoSource.DescriptionCut]);
+			Assert.Equal(TriageMode.Off, TriageSwitches.Defaults()[SeoSource.TitleCut]);
+			Assert.Equal(TriageMode.Off, TriageSwitches.Defaults()[SeoSource.DescriptionCut]);
+		}
+
+		[Fact]
+		public void CutTexts_ComeBack_WhenTheConfigSwitchesThemOn()
+		{
+			var modes = TriageSwitches.ModesFrom(new Dictionary<string, string>
+			{
+				[SeoSource.TitleCut] = "RideAlong",
+				[SeoSource.DescriptionCut] = "On",
+			});
+			Assert.Equal(TriageMode.RideAlong, modes[SeoSource.TitleCut]);
+			Assert.Equal(TriageMode.On, modes[SeoSource.DescriptionCut]);
 		}
 
 		[Fact]
@@ -112,7 +124,9 @@ namespace CrawlerSuite.Core.Tests.Triage
 				Assert.NotNull(FindingsCatalog.BasisFor(type, string.Empty));
 			}
 
-			Assert.All(SeoSource.Types, t => Assert.Equal(TriageMode.RideAlong, modes[t.Type])); // the entry for going deeper, not a list to start on
+			// The entry for going deeper, not a list to start on; the cut-off estimates are off.
+			Assert.All(SeoSource.Types.Where(t => t.Type is not (SeoSource.TitleCut or SeoSource.DescriptionCut)),
+				t => Assert.Equal(TriageMode.RideAlong, modes[t.Type]));
 			Assert.Equal(TriageMode.RideAlong, modes[SeoSource.TitleShared]); // on every page of a set: dealt with when the page is open
 			Assert.Equal(TriageMode.RideAlong, modes[SeoSource.DescriptionShared]);
 		}

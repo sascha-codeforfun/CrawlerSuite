@@ -88,7 +88,8 @@ public partial class MainWindow : Window
 
 		runView.StartRequested += async (_, _) => await StartRunAsync();
 		runView.QuickRunRequested += async (_, _) => await StartRunAsync(quick: true);
-		runView.ReloadRequested += async (_, _) => await LoadConfigurationAsync();
+		runView.ReloadRequested += async (_, _) => await ReloadAsync();
+		runView.ConfigChosen += async (_, path) => await UseConfigAsync(path);
 		runView.ResultsRequested += (_, _) => NavResults.IsChecked = true;
 		runView.OutputFilesRequested += (_, _) => NavFormats.IsChecked = true;
 		runView.FindingsRequested += (_, target) =>
@@ -471,7 +472,7 @@ public partial class MainWindow : Window
 			{
 				report.Say("Matching the ledger against this snapshot");
 				var triage = TriageModel.Read(snapshot, CrawlerSuite.Core.Lexicon.DictionaryCoverage.For(snapshot, userPath, sitePath),
-					runModel.Config?.Seo.TitleTemplates);
+					runModel.Config?.Seo.TitleTemplates, runModel.Config?.Seo.TriageCanonicalsOfNoindexPages == true);
 				return (triage, known ?? PageSourcesFor(snapshot), new CrawlerSuite.Core.Quality.ProperNameKeeper(AppPaths.ConfigFile, blocked));
 			});
 			triageModel.Show(snapshot, resultsModel.Heading, read, sources, names, runModel.Config?.TriageModes,
@@ -563,6 +564,52 @@ public partial class MainWindow : Window
 	// ── Configuration ────────────────────────────────────────────────────────
 
 	/// <summary>Loads the configuration and runs the start-up checks (off the UI thread).</summary>
+	/// <summary>
+	/// Reload configuration: with only the one in use next to the program, it is read again; with
+	/// others there too, they are all offered and nothing loads until one is clicked.
+	/// </summary>
+	private async Task ReloadAsync()
+	{
+		var files = AppPaths.ConfigFiles();
+		if (files.Count == 0 || (files.Count == 1 && SameFile(files[0], AppPaths.ConfigFile)))
+		{
+			runModel.CloseConfigChoices();
+			await LoadConfigurationAsync();
+			return;
+		}
+
+		runModel.OfferConfigs(files, AppPaths.ConfigFile);
+	}
+
+	/// <summary>A configuration was picked: it is used from now on (read, and saved to) and loaded.</summary>
+	private async Task UseConfigAsync(string path)
+	{
+		if (runModel.State.IsRunning || Busy.IsBusy)
+		{
+			return;
+		}
+
+		// Unsaved settings belong to the configuration in use; switching would leave them for the wrong file.
+		if (settingsModel.IsDirty && !SameFile(path, AppPaths.ConfigFile))
+		{
+			runModel.ConfigChoiceNote = $"Settings has unsaved changes to {Path.GetFileName(AppPaths.ConfigFile)}: save or discard them first.";
+			return;
+		}
+
+		AppPaths.UseConfig(path);
+		runModel.CloseConfigChoices();
+		if (!settingsModel.IsDirty)
+		{
+			settingsModel.Load(AppPaths.ConfigFile);
+		}
+
+		triageStale = true;
+		await LoadConfigurationAsync();
+	}
+
+	private static bool SameFile(string a, string b) =>
+		string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);
+
 	private async Task LoadConfigurationAsync()
 	{
 		if (runModel.State.IsRunning || Busy.IsBusy)

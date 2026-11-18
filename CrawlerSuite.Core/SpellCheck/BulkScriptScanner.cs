@@ -252,6 +252,30 @@ namespace CrawlerSuite.Core.SpellCheck
 					continue;
 				}
 
+				// Look-alike hyphens inside code identifiers ("margin－left:"), read from the raw
+				// string: the tokenizer would split most of them away, so the spell check below never
+				// sees them. The spell check's own findings are written first and unchanged; after
+				// them, each look-alike it did not report, whatever the classifier or the prose gate
+				// decided about the rest of the string, with the same excerpt a script finding has.
+				var lookAlikes = ScriptConfusables.Find(literal.Text);
+				void AddLookAlikes(IEnumerable<string> reported, bool full)
+				{
+					var already = reported.ToHashSet(StringComparer.Ordinal);
+					foreach (var word in lookAlikes.Where(w => !already.Contains(w)))
+					{
+						count++;
+						string ctx = ContextWindow(text, literal.RawStart, literal.RawLength).Replace('\n', ' ').Replace('\t', ' ').Trim();
+						string line = $"  {word}\t{Security.CsvInjectionGuard.Neutralize(sourceFor(literal.RawStart))}\t{Security.CsvInjectionGuard.Neutralize(ctx)}";
+						outw.WriteLine(line);
+						if (full)
+						{
+							uniqueWords?.Add(word);
+							findingSink?.Add(new ScriptWordHit(word, ctx));
+							trimmedWriter?.WriteLine(line);
+						}
+					}
+				}
+
 				// The checker's first gate, asked here so a literal it drops (most of a minified
 				// bundle) costs no run, no context window and no provenance lookup. Same verdict as
 				// inside RunChecker: same literal, same TokensToFilter (none without the ratio gate).
@@ -263,6 +287,7 @@ namespace CrawlerSuite.Core.SpellCheck
 
 				if (!verdict.ShouldCheck)
 				{
+					AddLookAlikes([], proseRatioGate);
 					continue;
 				}
 
@@ -294,6 +319,7 @@ namespace CrawlerSuite.Core.SpellCheck
 						gatedLiterals++;
 						suppressedFindings += gate.MissTokens;
 						outw.WriteLine($"# gated (ratio {gate.Ratio.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)}, {gate.MissTokens}/{gate.TotalTokens}) · {source} · {TrimLiteral(literal.Text)}");
+						AddLookAlikes([], full: true);
 						continue;
 					}
 
@@ -308,15 +334,21 @@ namespace CrawlerSuite.Core.SpellCheck
 						outw.WriteLine(line);
 						trimmedWriter?.WriteLine(line);
 					}
+
+					AddLookAlikes(findings.Select(f => f.Word), full: true);
 				}
 				else
 				{
+					var reported = new List<string>();
 					foreach (var finding in RunChecker.Check(run, dictionaries, checker.Check, scriptLiteralClassified: true))
 					{
 						count++;
+						reported.Add(finding.Word);
 						string ctx = (finding.ExcerptText ?? string.Empty).Replace('\n', ' ').Replace('\t', ' ').Trim();
 						outw.WriteLine($"  {finding.Word}\t{Security.CsvInjectionGuard.Neutralize(source)}\t{Security.CsvInjectionGuard.Neutralize(ctx)}");
 					}
+
+					AddLookAlikes(reported, full: false);
 				}
 			}
 

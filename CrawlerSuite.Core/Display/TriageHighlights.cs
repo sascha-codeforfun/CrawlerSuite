@@ -886,13 +886,27 @@ namespace CrawlerSuite.Core.Display
 		/// by lowercase or further tags, not the uppercase collider). Without such a
 		/// seam, the leading-seam shape (text&lt;tag&gt;WORD) is tried with
 		/// <see cref="ComputeLeadingSeamSpans"/>. The view only paints these spans.
+		/// <para>
+		/// The seam is painted only where the detector found it: the text before the closing tag
+		/// ends in a lowercase letter (tags in between aside), so a closing tag after a space
+		/// ("&lt;b&gt;Note: &lt;/b&gt;The") is never mistaken for it. With the finding's
+		/// <paramref name="detail"/>, the side it names decides the shape and the element it names
+		/// the tag: "Inline &lt;x&gt; abuts bare text" is a trailing seam at &lt;/x&gt;, "Bare text
+		/// abuts inline &lt;x&gt;" a leading one.
+		/// </para>
 		/// </summary>
-		internal static IReadOnlyList<SplitSpan> ComputeWordCollisionSpans(string excerpt)
+		internal static IReadOnlyList<SplitSpan> ComputeWordCollisionSpans(string excerpt, string? detail = null)
 		{
 			var spans = new List<SplitSpan>();
 			if (string.IsNullOrEmpty(excerpt))
 			{
 				return spans;
+			}
+
+			var (side, named) = CollisionSideOf(detail);
+			if (side == CollisionSide.Leading)
+			{
+				return ComputeLeadingSeamSpans(excerpt);
 			}
 
 			// Locate the seam: an inline closing tag immediately followed by an
@@ -912,7 +926,9 @@ namespace CrawlerSuite.Core.Display
 						&& string.Compare(excerpt, i, tag, 0, tag.Length, StringComparison.OrdinalIgnoreCase) == 0)
 					{
 						int after = i + tag.Length;
-						if (after < excerpt.Length && char.IsUpper(excerpt[after]))
+						if (after < excerpt.Length && char.IsUpper(excerpt[after])
+							&& (named is null || string.Equals(tag, "</" + named + ">", StringComparison.OrdinalIgnoreCase))
+							&& LastTextCharBefore(excerpt, i) is char last && char.IsLower(last))
 						{
 							closeAt = i;
 							closeLen = tag.Length;
@@ -926,8 +942,9 @@ namespace CrawlerSuite.Core.Display
 
 			if (closeAt < 0)
 			{
-				// No trailing (</tag>WORD) seam — try the leading (WORD<tag>) shape.
-				return ComputeLeadingSeamSpans(excerpt);
+				// No trailing (</tag>WORD) seam — try the leading (WORD<tag>) shape, unless the
+				// finding names the trailing side: then there is nothing to paint.
+				return side == CollisionSide.Trailing ? spans : ComputeLeadingSeamSpans(excerpt);
 			}
 
 			var afterClose = closeAt + closeLen;
@@ -989,6 +1006,44 @@ namespace CrawlerSuite.Core.Display
 			}
 
 			return spans;
+		}
+
+		private enum CollisionSide { Unknown, Trailing, Leading }
+
+		// "[3] Inline <span> abuts bare text without separator — words merge" / "[3] Bare text abuts inline <b> …".
+		// A plain Regex, not source-generated: generated helpers carry a hash of the source path.
+		private static readonly Regex CollisionDetailRegex = new(@"(?<trailing>Inline <(?<a>[a-z0-9]+)> abuts bare text)|(?<leading>Bare text abuts inline <(?<b>[a-z0-9]+)>)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+		private static (CollisionSide Side, string? Element) CollisionSideOf(string? detail)
+		{
+			var m = string.IsNullOrEmpty(detail) ? null : CollisionDetailRegex.Match(detail);
+			return m is null || !m.Success ? (CollisionSide.Unknown, null)
+				: m.Groups["trailing"].Success ? (CollisionSide.Trailing, m.Groups["a"].Value)
+				: (CollisionSide.Leading, m.Groups["b"].Value);
+		}
+
+		// The last character of text before <paramref name="end"/>, tags skipped; null when there is none.
+		private static char? LastTextCharBefore(string excerpt, int end)
+		{
+			int i = end - 1;
+			while (i >= 0)
+			{
+				if (excerpt[i] == '>')
+				{
+					int lt = excerpt.LastIndexOf('<', i);
+					if (lt < 0)
+					{
+						return null;
+					}
+
+					i = lt - 1;
+					continue;
+				}
+
+				return excerpt[i];
+			}
+
+			return null;
 		}
 
 		/// <summary>
